@@ -2,7 +2,7 @@ import os, re, json, urllib.parse, numpy as np
 from collections import defaultdict
 from yandex_cloud_ml_sdk import YCloudML
 from scipy.spatial.distance import cdist
-from config import INDEX_DIR, DOCS_DIR, FOLDER_ID, API_KEY, TOP_K, BEST_K, PAGE_WINDOW, MAX_SNIPPET, SYSTEM_JSON
+from .config import INDEX_DIR, DOCS_DIR, FOLDER_ID, API_KEY, TOP_K, BEST_K, PAGE_WINDOW, MAX_SNIPPET, SYSTEM_JSON
 
 chunks = json.load(open(os.path.join(INDEX_DIR, "chunks.json"), "r", encoding="utf-8"))
 doc_vectors = np.load(os.path.join(INDEX_DIR, "vectors.npy"))
@@ -40,9 +40,20 @@ def _expand_by_pages(idx):
                 selected.add(j)
     return sorted(selected)
 
-def link_for(local_name: str, page: int, base_url: str):
+def viewer_url(local_name: str, base_url: str, page: int | None = None) -> str:
+    base = base_url.rstrip("/")
     qname = urllib.parse.quote(local_name)
-    return f"{base_url}files/{qname}#page={int(page)}"
+    suffix = f"/viewer/{qname}"
+    query = f"?page={int(page)}" if page else ""
+    return f"{base}{suffix}{query}"
+
+
+def link_for(local_name: str, page: int, base_url: str):
+    try:
+        page_int = int(page)
+    except (TypeError, ValueError):
+        page_int = None
+    return viewer_url(local_name, base_url, page_int)
 
 def build_context(idx, base_url: str):
     expanded = _expand_by_pages(idx[:BEST_K])
@@ -165,10 +176,14 @@ def build_sources_from_idx(idx, base_url: str, limit=3):
             continue
         seen.add(key)
         local_name = ch.get("local_name") or os.path.basename(ch.get("path","doc.pdf"))
+        try:
+            page_num = int(ch.get("page") or 1)
+        except (TypeError, ValueError):
+            page_num = 1
         res.append({
             "title": ch.get("title") or local_name or "Документ",
-            "page": int(ch.get("page") or 1),
-            "url": link_for(local_name, ch.get("page") or 1, base_url)
+            "page": page_num,
+            "url": link_for(local_name, page_num, base_url)
         })
         if len(res) >= limit:
             break
@@ -214,11 +229,13 @@ def list_manifest(base_url: str):
     out = []
     for m in manifest:
         local_name = m.get("local_name") or os.path.basename(m.get("path","doc.pdf"))
+        doc_path = os.path.join(DOCS_DIR, local_name)
+        if not os.path.exists(doc_path):
+            continue
         out.append({
             "doc_id": m.get("doc_id"),
             "title": m.get("title"),
             "local_name": local_name,
-            "url": f"{base_url}files/{urllib.parse.quote(local_name)}"
+            "url": viewer_url(local_name, base_url),
         })
     return out
-
