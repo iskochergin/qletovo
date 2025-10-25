@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+yandex-cloud-ml-sdk
+numpy
+scipy
+pydantic
+aiofiles
