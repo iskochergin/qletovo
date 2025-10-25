@@ -249,7 +249,7 @@ def handle_message(message: types.Message) -> None:
             continue
         buttons.append(types.InlineKeyboardButton(text="Открыть документ", url=url))
 
-    if buttons:
+    if len(buttons) == 1:
         markup = types.InlineKeyboardMarkup(row_width=1)
         markup.add(*buttons)
 

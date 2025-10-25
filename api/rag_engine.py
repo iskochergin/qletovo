@@ -205,7 +205,11 @@ def llm_answer(question: str, base_url: str, temperature: float = 0.0) -> dict:
     out = sdk.models.completions("yandexgpt-lite").configure(temperature=temperature).run(msgs)
     raw = out[0].text if out else ""
     data = _safe_json_loads(raw)
-    if not data.get("sources"):
+    answer_text = _coerce_answer_text(data.get("answer"))
+    if answer_text == "Нет данных в предоставленном контексте.":
+        data["sources"] = []
+        data["status"] = "not_found"
+    elif not data.get("sources"):
         data["sources"] = build_sources_from_idx(idx, base_url, limit=3)
     if "status" not in data:
         data["status"] = "answerable" if data.get("answer") else "not_found"
@@ -213,6 +217,8 @@ def llm_answer(question: str, base_url: str, temperature: float = 0.0) -> dict:
 
 def to_telegram_md(answer: str | list, sources: list) -> str:
     a = _coerce_answer_text(answer)
+    if a.strip() == "Нет данных в предоставленном контексте.":
+        return "Нет данных в предоставленном контексте."
     links = []
     for s in sources or []:
         title = s.get("title") or "Документ"
