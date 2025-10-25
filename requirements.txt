@@ -5,3 +5,5 @@ numpy
 scipy
 pydantic
 aiofiles
+pyTelegramBotAPI
+requests
