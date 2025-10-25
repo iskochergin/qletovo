@@ -8,7 +8,7 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from web.docs.site import iter_pdf_files, render_index_page, render_viewer_page
 
-from .config import DOCS_DIR, CORS_ORIGINS
+from .config import API_HOST, API_PORT, DOCS_DIR, CORS_ORIGINS
 from .rag_engine import llm_answer, to_telegram_md, list_manifest
 
 class AskIn(BaseModel):
@@ -61,3 +61,13 @@ def ask(payload: AskIn, request: Request):
     data = llm_answer(payload.question.strip(), base, payload.temperature or 0.0)
     text = to_telegram_md(data.get("answer"), data.get("sources"))
     return AskOut(text=text, answer=data.get("answer"), sources=data.get("sources"))
+
+
+def main() -> None:
+    import uvicorn
+
+    uvicorn.run(app, host=API_HOST, port=API_PORT)
+
+
+if __name__ == "__main__":
+    main()

@@ -1,8 +1,9 @@
 import logging
 import sys
 import time
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional
+from typing import Dict, Iterable, List, Optional, Tuple
 from urllib.parse import urlparse, urlunparse
 
 import requests
@@ -14,19 +15,24 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from api.config import BASE_API_URL, TELEGRAM_TOKEN
+from telegram.config import (
+    API_TIMEOUT,
+    BASE_API_URL,
+    DAILY_REQUEST_LIMIT,
+    MESSAGE_RATE_SECONDS,
+    TELEGRAM_TOKEN,
+)
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(name)s %(message)s",
 )
 
-API_TIMEOUT = (5, 90)
 MAX_MESSAGE_LENGTH = 4096
-RATE_LIMIT_SECONDS = 5
 
 bot = TeleBot(TELEGRAM_TOKEN, parse_mode="Markdown")
 last_message_at: Dict[int, float] = {}
+daily_usage: Dict[int, Tuple[str, int]] = {}
 
 
 def markdown_escape(text: str) -> str:
@@ -74,11 +80,26 @@ def rate_limit(chat_id: int) -> Optional[int]:
     now = time.time()
     last_seen = last_message_at.get(chat_id, 0.0)
     delta = now - last_seen
-    if delta < RATE_LIMIT_SECONDS:
-        return int(RATE_LIMIT_SECONDS - delta)
+    if delta < MESSAGE_RATE_SECONDS:
+        return int(MESSAGE_RATE_SECONDS - delta)
 
     last_message_at[chat_id] = now
     return None
+
+
+def consume_daily_quota(chat_id: int) -> Optional[int]:
+    today = datetime.now(timezone.utc).date().isoformat()
+    stored = daily_usage.get(chat_id)
+    count = 0
+    if stored:
+        stored_day, stored_count = stored
+        if stored_day == today:
+            count = stored_count
+    if count >= DAILY_REQUEST_LIMIT:
+        return None
+    count += 1
+    daily_usage[chat_id] = (today, count)
+    return DAILY_REQUEST_LIMIT - count
 
 
 def fetch_manifest() -> Iterable[dict]:
@@ -183,6 +204,14 @@ def handle_message(message: types.Message) -> None:
         bot.reply_to(
             message,
             f"Слишком часто. Подождите ещё {wait_for} с.",
+        )
+        return
+
+    _remaining = consume_daily_quota(message.chat.id)
+    if _remaining is None:
+        bot.reply_to(
+            message,
+            "Дневной лимит 30 запросов исчерпан. Задайте вопрос завтра.",
         )
         return
 
