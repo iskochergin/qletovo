@@ -1,5 +1,6 @@
-import os, re, json, urllib.parse, numpy as np
+import os, re, json, urllib.parse, unicodedata, numpy as np
 from collections import defaultdict
+from pathlib import Path
 from yandex_cloud_ml_sdk import YCloudML
 from scipy.spatial.distance import cdist
 from .config import INDEX_DIR, DOCS_DIR, FOLDER_ID, API_KEY, TOP_K, BEST_K, PAGE_WINDOW, MAX_SNIPPET, SYSTEM_JSON
@@ -11,6 +12,27 @@ manifest = json.load(open(manifest_path, "r", encoding="utf-8")) if os.path.exis
 
 sdk = YCloudML(folder_id=FOLDER_ID, auth=API_KEY)
 emb_query = sdk.models.text_embeddings("query")
+
+DOCS_PATH = Path(DOCS_DIR)
+_AVAILABLE_DOCS = {}
+if DOCS_PATH.exists():
+    for file_path in DOCS_PATH.iterdir():
+        if file_path.is_file():
+            norm_name = unicodedata.normalize("NFC", file_path.name)
+            _AVAILABLE_DOCS[norm_name] = file_path.name
+
+def resolve_local_filename(name: str | None) -> str | None:
+    if not name:
+        return None
+    norm = unicodedata.normalize("NFC", name)
+    match = _AVAILABLE_DOCS.get(norm)
+    if match:
+        return match
+    folded = norm.casefold()
+    for key, value in _AVAILABLE_DOCS.items():
+        if key.casefold() == folded:
+            return value
+    return None
 
 def retrieve_local(question, k=TOP_K):
     qv = np.array(emb_query.run(question), dtype="float32")[None, :]
@@ -41,8 +63,9 @@ def _expand_by_pages(idx):
     return sorted(selected)
 
 def viewer_url(local_name: str, base_url: str, page: int | None = None) -> str:
+    actual_local = resolve_local_filename(local_name) or local_name
     base = base_url.rstrip("/")
-    qname = urllib.parse.quote(local_name)
+    qname = urllib.parse.quote(actual_local)
     suffix = f"/viewer/{qname}"
     query = f"?page={int(page)}" if page else ""
     return f"{base}{suffix}{query}"
@@ -62,7 +85,7 @@ def build_context(idx, base_url: str):
         ch = chunks[i]
         title = ch.get("title") or ch.get("local_name") or "Документ"
         page = ch.get("page") or "—"
-        local_name = ch.get("local_name") or os.path.basename(ch.get("path","doc.pdf"))
+        local_name = resolve_local_filename(ch.get("local_name")) or os.path.basename(ch.get("path","doc.pdf"))
         url = link_for(local_name, page, base_url)
         blocks.append(f"[{title}; стр. {page}; файл: {url}]\n{_block_text(ch)}")
     return "\n\n---\n\n".join(blocks), expanded
@@ -175,7 +198,7 @@ def build_sources_from_idx(idx, base_url: str, limit=3):
         if key in seen:
             continue
         seen.add(key)
-        local_name = ch.get("local_name") or os.path.basename(ch.get("path","doc.pdf"))
+        local_name = resolve_local_filename(ch.get("local_name")) or os.path.basename(ch.get("path","doc.pdf"))
         try:
             page_num = int(ch.get("page") or 1)
         except (TypeError, ValueError):
@@ -234,9 +257,9 @@ def to_telegram_md(answer: str | list, sources: list) -> str:
 def list_manifest(base_url: str):
     out = []
     for m in manifest:
-        local_name = m.get("local_name") or os.path.basename(m.get("path","doc.pdf"))
-        doc_path = os.path.join(DOCS_DIR, local_name)
-        if not os.path.exists(doc_path):
+        requested = m.get("local_name") or os.path.basename(m.get("path","doc.pdf"))
+        local_name = resolve_local_filename(requested)
+        if not local_name:
             continue
         out.append({
             "doc_id": m.get("doc_id"),

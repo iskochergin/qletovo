@@ -18,11 +18,12 @@ INDEX_TEMPLATE = _load_asset("index.html")
 VIEWER_TEMPLATE = _load_asset("viewer.html")
 
 
-def _wrap_page(header_html: str, body_html: str, *, title: str) -> str:
+def _wrap_page(header_html: str, body_html: str, *, title: str, body_class: str = "") -> str:
     return (
         BASE_TEMPLATE
         .replace("{{TITLE}}", title)
         .replace("{{STYLE}}", STYLE)
+        .replace("{{BODY_CLASS}}", body_class)
         .replace("{{HEADER}}", header_html)
         .replace("{{BODY}}", body_html)
     )
@@ -40,7 +41,7 @@ def render_index_page(files: Iterable[Tuple[str, str]]) -> str:
         body = '<p class="empty-state">PDF-файлы не найдены.</p>'
 
     header = '<h1 class="header-title">Документы «Летово»</h1>'
-    return _wrap_page(header, body, title="Документы «Летово»")
+    return _wrap_page(header, body, title="Документы «Летово»", body_class="index-page")
 
 
 def render_viewer_page(document_title: str, pdf_url: str) -> str:
@@ -50,7 +51,9 @@ def render_viewer_page(document_title: str, pdf_url: str) -> str:
         .replace("{{PDF_URL}}", escape(pdf_url, quote=True))
         .replace("{{PDF_TITLE}}", escape(document_title))
     )
-    return _wrap_page(header, body, title=document_title or "Документы «Летово»")
+    title_short = (document_title[:48] + "…") if len(document_title) > 51 else document_title
+    body = body.replace("{{PDF_TITLE_SHORT}}", escape(title_short))
+    return _wrap_page(header, body, title=document_title or "Документы «Летово»", body_class="viewer-page")
 
 
 def iter_pdf_files(directory: str) -> List[Path]:

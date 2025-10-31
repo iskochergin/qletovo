@@ -1,3 +1,17 @@
-<div class="viewer-wrapper">
-  <iframe class="viewer-frame" src="{{PDF_URL}}" title="{{PDF_TITLE}}" allowfullscreen></iframe>
+<div class="viewer-layout">
+  <div class="viewer-desktop">
+    <iframe
+      class="viewer-iframe"
+      src="{{PDF_URL}}#view=FitH"
+      title="{{PDF_TITLE}}"
+      loading="lazy"
+      allowfullscreen
+    ></iframe>
+  </div>
+  <div class="viewer-mobile">
+    <div class="viewer-mobile-card">
+      <div class="viewer-mobile-title">{{PDF_TITLE_SHORT}}</div>
+      <a class="viewer-mobile-button" href="{{PDF_URL}}" download>Скачать PDF</a>
+    </div>
+  </div>
 </div>
