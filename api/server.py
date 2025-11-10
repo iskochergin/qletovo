@@ -4,7 +4,7 @@ from urllib.parse import quote
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, FileResponse
 from pydantic import BaseModel
 from web.docs.site import iter_pdf_files, render_index_page, render_viewer_page
 
@@ -21,15 +21,21 @@ class AskOut(BaseModel):
     sources: list
 
 DOCS_PATH = Path(DOCS_DIR)
+CHAT_PATH = Path("web/chat")
+CHAT_INDEX = CHAT_PATH / "index.html"
+FAVICON_PATH = Path("media/qletovo-logo.ico")
 
 app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=CORS_ORIGINS, allow_methods=["*"], allow_headers=["*"])
 app.mount("/files", StaticFiles(directory=DOCS_DIR), name="files")
-FAVICON_PATH = Path("media/qletovo-logo.ico")
+if CHAT_PATH.exists():
+    app.mount("/chat", StaticFiles(directory=CHAT_PATH), name="chat-static")
 
 
 @app.get("/", response_class=HTMLResponse)
 def docs_index():
+    if CHAT_INDEX.exists():
+        return FileResponse(CHAT_INDEX)
     files = iter_pdf_files(DOCS_DIR)
     items = [(file_path.name, f"/viewer/{quote(file_path.name)}") for file_path in files]
     return HTMLResponse(render_index_page(items))
@@ -71,6 +77,11 @@ def ask(payload: AskIn, request: Request):
     data = llm_answer(payload.question.strip(), base, payload.temperature or 0.0)
     text = to_telegram_md(data.get("answer"), data.get("sources"))
     return AskOut(text=text, answer=data.get("answer"), sources=data.get("sources"))
+
+
+@app.post("/_api/ask", response_model=AskOut)
+def ask_proxy(payload: AskIn, request: Request):
+    return ask(payload, request)
 
 
 @app.get("/favicon.ico", include_in_schema=False)

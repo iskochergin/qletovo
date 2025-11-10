@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Летово: вопросы-ответы</title>
+    <link rel="stylesheet" href="/chat/style.css" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+  </head>
+  <body class="dark">
+    <div class="app-shell">
+      <header class="top-bar">
+        <div class="brand">Летово: вопросы-ответы</div>
+        <div class="top-actions">
+          <nav class="tab-switcher" aria-label="Переключение вкладок">
+            <button class="tab-btn" data-tab="documents" type="button">Документы</button>
+            <button class="tab-btn active" data-tab="chat" type="button">Чат</button>
+          </nav>
+        </div>
+      </header>
+
+      <main class="content-area">
+        <section id="documents" class="tab-panel" aria-labelledby="documents-tab">
+          <div class="docs-placeholder" id="docs-placeholder">Загружаю документы…</div>
+          <div class="docs-list hidden" id="docs-list" aria-live="polite"></div>
+        </section>
+
+        <section id="chat" class="tab-panel active" aria-labelledby="chat-tab">
+          <div class="chat-start" id="chat-start">
+            <h1 class="start-headline">Задайте вопрос о Школе «Летово»</h1>
+            <form class="start-form" id="start-form">
+              <label class="input-shell">
+                <textarea
+                  id="start-input"
+                  rows="1"
+                  placeholder=""
+                  aria-label="Задайте вопрос о Школе «Летово»"
+                  required
+                ></textarea>
+                <button type="submit" id="start-submit" disabled aria-label="Отправить вопрос">
+                  <span class="sr-only">Отправить</span>
+                </button>
+              </label>
+            </form>
+          </div>
+
+          <div class="chat-flow hidden" id="chat-flow">
+            <div class="messages" id="messages" aria-live="polite"></div>
+            <form class="input-area" id="chat-form">
+              <label class="input-shell sticky-shell">
+                <textarea
+                  id="chat-input"
+                  rows="1"
+                  placeholder=""
+                  aria-label="Задайте вопрос о Школе «Летово»"
+                  required
+                ></textarea>
+                <button type="submit" id="chat-submit" disabled aria-label="Отправить вопрос">
+                  <span class="sr-only">Отправить</span>
+                </button>
+              </label>
+            </form>
+          </div>
+        </section>
+      </main>
+
+      <div class="toast" id="toast" role="status" aria-live="assertive"></div>
+    </div>
+
+    <div class="modal hidden" id="json-modal" role="dialog" aria-modal="true" aria-labelledby="json-modal-title">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 id="json-modal-title">Сырой ответ</h2>
+          <button class="modal-close" id="json-close" type="button" aria-label="Закрыть">×</button>
+        </div>
+        <pre id="json-raw"></pre>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js" crossorigin="anonymous"></script>
+    <script src="/chat/app.js" type="module"></script>
+  </body>
+</html>
