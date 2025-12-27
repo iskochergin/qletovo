@@ -14,12 +14,14 @@ export function PureMessageActions({
   vote,
   isLoading,
   setMode,
+  lastUserText,
 }: {
   chatId: string;
   message: ChatMessage;
   vote: Vote | undefined;
   isLoading: boolean;
   setMode?: (mode: "view" | "edit") => void;
+  lastUserText?: string;
 }) {
   const { mutate } = useSWRConfig();
   const [_, copyToClipboard] = useCopyToClipboard();
@@ -36,12 +38,12 @@ export function PureMessageActions({
 
   const handleCopy = async () => {
     if (!textFromParts) {
-      toast.error("There's no text to copy!");
+      toast.error("Нет текста для копирования");
       return;
     }
 
     await copyToClipboard(textFromParts);
-    toast.success("Copied to clipboard!");
+    toast.success("Скопировано");
   };
 
   // User messages get edit (on hover) and copy actions
@@ -54,12 +56,12 @@ export function PureMessageActions({
               className="-left-10 absolute top-0 opacity-0 transition-opacity focus-visible:opacity-100 group-hover/message:opacity-100"
               data-testid="message-edit-button"
               onClick={() => setMode("edit")}
-              tooltip="Edit"
+              tooltip="Редактировать"
             >
               <PencilEditIcon />
             </Action>
           )}
-          <Action onClick={handleCopy} tooltip="Copy">
+          <Action onClick={handleCopy} tooltip="Копировать">
             <CopyIcon />
           </Action>
         </div>
@@ -69,7 +71,7 @@ export function PureMessageActions({
 
   return (
     <Actions className="-ml-0.5">
-      <Action onClick={handleCopy} tooltip="Copy">
+      <Action onClick={handleCopy} tooltip="Копировать">
         <CopyIcon />
       </Action>
 
@@ -83,11 +85,13 @@ export function PureMessageActions({
               chatId,
               messageId: message.id,
               type: "up",
+              messageText: textFromParts,
+              userMessageText: lastUserText ?? "",
             }),
           });
 
           toast.promise(upvote, {
-            loading: "Upvoting Response...",
+            loading: "Сохраняем лайк...",
             success: () => {
               mutate<Vote[]>(
                 `/api/vote?chatId=${chatId}`,
@@ -112,12 +116,12 @@ export function PureMessageActions({
                 { revalidate: false }
               );
 
-              return "Upvoted Response!";
+              return "Лайк сохранён";
             },
-            error: "Failed to upvote response.",
+            error: "Не удалось сохранить реакцию",
           });
         }}
-        tooltip="Upvote Response"
+        tooltip="Понравилось"
       >
         <ThumbUpIcon />
       </Action>
@@ -132,11 +136,13 @@ export function PureMessageActions({
               chatId,
               messageId: message.id,
               type: "down",
+              messageText: textFromParts,
+              userMessageText: lastUserText ?? "",
             }),
           });
 
           toast.promise(downvote, {
-            loading: "Downvoting Response...",
+            loading: "Сохраняем дизлайк...",
             success: () => {
               mutate<Vote[]>(
                 `/api/vote?chatId=${chatId}`,
@@ -161,12 +167,12 @@ export function PureMessageActions({
                 { revalidate: false }
               );
 
-              return "Downvoted Response!";
+              return "Дизлайк сохранён";
             },
-            error: "Failed to downvote response.",
+            error: "Не удалось сохранить реакцию",
           });
         }}
-        tooltip="Downvote Response"
+        tooltip="Не понравилось"
       >
         <ThumbDownIcon />
       </Action>

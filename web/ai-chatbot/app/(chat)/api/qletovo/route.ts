@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 const DEFAULT_BACKEND_URL = "http://127.0.0.1:8765/ask";
 // По умолчанию работаем в режиме заглушки; чтобы включить реальный бэкенд
 // выстави QLETOVO_STUB=false (или поменяй переменную ниже).
-const USE_STUB = process.env.QLETOVO_STUB !== "false";
+const USE_STUB = (process.env.QLETOVO_STUB ?? "true").toLowerCase() !== "false";
 
 type IncomingMessage = {
   role: string;
@@ -106,6 +106,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "bad_request" }, { status: 400 });
   }
 
+  console.log("[qletovo] mode", USE_STUB ? "stub" : "backend");
+
   if (USE_STUB) {
     const stub = normalizeToMarkdown(pickStubAnswer());
     console.log("[qletovo] stub response", stub);
@@ -161,12 +163,9 @@ export async function POST(request: Request) {
     return streamTextResponse(responseText);
   } catch (error: any) {
     console.error("[qletovo] error", error);
-    return NextResponse.json(
-      {
-        error: "fetch_failed",
-        detail: error?.message ?? "Unknown error",
-      },
-      { status: 500 }
-    );
+    // Фолбэк на заглушку, если реальный бэкенд недоступен
+    const stub = normalizeToMarkdown(pickStubAnswer());
+    console.log("[qletovo] fallback to stub");
+    return streamTextResponse(stub);
   }
 }

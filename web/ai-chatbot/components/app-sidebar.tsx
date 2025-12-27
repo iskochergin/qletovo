@@ -48,9 +48,9 @@ export function AppSidebar() {
 
     try {
       await navigator.clipboard.writeText(shareLink);
-      toast.success("Shareable link copied");
+      toast.success("Ссылка для доступа скопирована");
     } catch (_error) {
-      toast.error("Failed to copy link");
+      toast.error("Не удалось скопировать ссылку");
     }
   };
 

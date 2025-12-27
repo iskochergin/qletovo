@@ -135,7 +135,7 @@ export function SidebarHistory({ user }: { user: User | undefined }) {
     });
 
     toast.promise(deletePromise, {
-      loading: "Deleting chat...",
+      loading: "Удаляем чат...",
       success: () => {
         mutate((chatHistories) => {
           if (chatHistories) {
@@ -153,9 +153,9 @@ export function SidebarHistory({ user }: { user: User | undefined }) {
           router.refresh();
         }
 
-        return "Chat deleted successfully";
+        return "Чат удалён";
       },
-      error: "Failed to delete chat",
+      error: "Не удалось удалить чат",
     });
   };
 

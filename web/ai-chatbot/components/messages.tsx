@@ -56,28 +56,46 @@ function PureMessages({
         >
           {messages.length === 0 && <Greeting />}
 
-          {messages.map((message, index) => (
-            <PreviewMessage
-              addToolApprovalResponse={addToolApprovalResponse}
-              chatId={chatId}
-              isLoading={
-                status === "streaming" && messages.length - 1 === index
+          {(() => {
+            let lastUserText = "";
+            return messages.map((message, index) => {
+              const prevUserText = lastUserText;
+              if (message.role === "user") {
+                const userText = message.parts
+                  ?.filter((part) => part.type === "text")
+                  .map((part) => part.text)
+                  .join("\n")
+                  .trim();
+                if (userText) {
+                  lastUserText = userText;
+                }
               }
-              isReadonly={isReadonly}
-              key={message.id}
-              message={message}
-              regenerate={regenerate}
-              requiresScrollPadding={
-                hasSentMessage && index === messages.length - 1
-              }
-              setMessages={setMessages}
-              vote={
-                votes
-                  ? votes.find((vote) => vote.messageId === message.id)
-                  : undefined
-              }
-            />
-          ))}
+
+              return (
+                <PreviewMessage
+                  addToolApprovalResponse={addToolApprovalResponse}
+                  chatId={chatId}
+                  isLoading={
+                    status === "streaming" && messages.length - 1 === index
+                  }
+                  isReadonly={isReadonly}
+                  key={message.id}
+                  lastUserText={prevUserText}
+                  message={message}
+                  regenerate={regenerate}
+                  requiresScrollPadding={
+                    hasSentMessage && index === messages.length - 1
+                  }
+                  setMessages={setMessages}
+                  vote={
+                    votes
+                      ? votes.find((vote) => vote.messageId === message.id)
+                      : undefined
+                  }
+                />
+              );
+            });
+          })()}
 
           {status === "submitted" &&
             !messages.some((msg) =>

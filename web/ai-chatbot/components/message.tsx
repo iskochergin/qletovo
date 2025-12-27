@@ -35,6 +35,7 @@ const PurePreviewMessage = ({
   regenerate,
   isReadonly,
   requiresScrollPadding: _requiresScrollPadding,
+  lastUserText,
 }: {
   addToolApprovalResponse: UseChatHelpers<ChatMessage>["addToolApprovalResponse"];
   chatId: string;
@@ -45,6 +46,7 @@ const PurePreviewMessage = ({
   regenerate: UseChatHelpers<ChatMessage>["regenerate"];
   isReadonly: boolean;
   requiresScrollPadding: boolean;
+  lastUserText?: string;
 }) => {
   const [mode, setMode] = useState<"view" | "edit">("view");
 
@@ -136,17 +138,12 @@ const PurePreviewMessage = ({
                   <div className="space-y-3" key={key}>
                     <MessageContent
                       className={cn({
-                        "wrap-break-word w-fit rounded-2xl px-3 py-2 text-right text-white text-[15px]":
+                        "wrap-break-word w-fit rounded-2xl px-3 py-2 text-right text-foreground text-[15px] bg-muted border border-border/60":
                           message.role === "user",
                         "bg-transparent px-0 py-0 text-left text-[15px]":
                           message.role === "assistant",
                       })}
                       data-testid="message-content"
-                      style={
-                        message.role === "user"
-                          ? { backgroundColor: "#006cff" }
-                          : undefined
-                      }
                     >
                       <Response>{sanitizeText(cleanedText)}</Response>
                     </MessageContent>
@@ -372,6 +369,7 @@ const PurePreviewMessage = ({
               chatId={chatId}
               isLoading={isLoading}
               key={`action-${message.id}`}
+              lastUserText={lastUserText}
               message={message}
               setMode={setMode}
               vote={vote}
@@ -386,6 +384,9 @@ const PurePreviewMessage = ({
 export const PreviewMessage = memo(
   PurePreviewMessage,
   (prevProps, nextProps) => {
+    if (prevProps.lastUserText !== nextProps.lastUserText) {
+      return false;
+    }
     if (
       prevProps.isLoading === nextProps.isLoading &&
       prevProps.message.id === nextProps.message.id &&
