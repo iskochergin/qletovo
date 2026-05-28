@@ -1,5 +1,19 @@
+# secrets / env
+.env
+.env.local
 /api/config.py
-__pycache__/
-.DS_Store
 /telegram/config.py
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# regenerable index (rebuild with: python -m scripts.reindex)
+/data/index/
+/data/docs/_sources.json
+
+# os
+.DS_Store
 votes.json

@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Админка — документы «Летово»</title>
+<link rel="icon" href="/favicon.ico" />
+<style>
+  :root { --fg:#111; --muted:#666; --line:#e3e3e3; --bg:#fff; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--fg); background: var(--bg); margin: 0; line-height: 1.5;
+  }
+  .wrap { max-width: 820px; margin: 0 auto; padding: 24px 20px 60px; }
+  h1 { font-size: 18px; font-weight: 600; }
+  h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); margin-top: 32px; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+  input, button { font: inherit; }
+  input[type=password], input[type=file] { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; width: 100%; }
+  button {
+    border: 1px solid var(--fg); background: var(--fg); color: #fff;
+    border-radius: 8px; padding: 9px 16px; cursor: pointer; margin-top: 10px;
+  }
+  button.secondary { background: #fff; color: var(--fg); }
+  button.danger { background: #fff; color: #b00; border-color: #b00; padding: 4px 10px; margin: 0; font-size: 13px; }
+  button:disabled { opacity: .4; cursor: default; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+  th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); font-size: 14px; vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; }
+  a { color: var(--fg); }
+  .muted { color: var(--muted); font-size: 13px; }
+  .status { margin-top: 10px; font-size: 14px; min-height: 20px; }
+  #panel { display: none; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Админка — документы «Летово»</h1>
+
+  <div id="login">
+    <p class="muted">Введите пароль администратора (из .env → ADMIN_PASSWORD).</p>
+    <div style="max-width:320px">
+      <input id="pw" type="password" placeholder="Пароль" />
+      <button id="loginBtn">Войти</button>
+    </div>
+    <div class="status" id="loginStatus"></div>
+  </div>
+
+  <div id="panel">
+    <h2>Загрузить PDF</h2>
+    <input id="files" type="file" accept="application/pdf,.pdf" multiple />
+    <div class="row">
+      <button id="uploadBtn">Загрузить и проиндексировать</button>
+      <button id="reindexBtn" class="secondary">Полная переиндексация</button>
+    </div>
+    <div class="status" id="opStatus"></div>
+
+    <h2>Проиндексированные документы</h2>
+    <div id="docsWrap"><p class="muted">Загрузка…</p></div>
+  </div>
+</div>
+
+<script>
+let PW = "";
+
+const $ = (id) => document.getElementById(id);
+function esc(s){ const d=document.createElement('div'); d.textContent=s==null?'':String(s); return d.innerHTML; }
+function headers(extra){ return Object.assign({'X-Admin-Password': PW}, extra||{}); }
+
+async function login(){
+  PW = $('pw').value;
+  $('loginStatus').textContent = 'Проверка…';
+  try {
+    const r = await fetch('/admin/login', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({password: PW})
+    });
+    if (!r.ok) throw new Error('bad');
+    $('login').classList.add('hidden');
+    $('panel').style.display = 'block';
+    loadDocs();
+  } catch (e) {
+    $('loginStatus').textContent = 'Неверный пароль.';
+  }
+}
+
+async function loadDocs(){
+  const wrap = $('docsWrap');
+  wrap.innerHTML = '<p class="muted">Загрузка…</p>';
+  try {
+    const r = await fetch('/admin/docs', { headers: headers() });
+    const docs = await r.json();
+    if (!docs.length){ wrap.innerHTML = '<p class="muted">Документов пока нет.</p>'; return; }
+    let html = '<table><thead><tr><th>Документ</th><th>Стр.</th><th>Чанков</th><th></th></tr></thead><tbody>';
+    for (const d of docs){
+      html += '<tr>'
+        + '<td><a href="'+esc(d.url)+'" target="_blank" rel="noopener">'+esc(d.title || d.local_name)+'</a><div class="muted">'+esc(d.local_name)+'</div></td>'
+        + '<td>'+esc(d.page_count ?? '')+'</td>'
+        + '<td>'+esc(d.n_chunks ?? '')+'</td>'
+        + '<td><button class="danger" data-id="'+esc(d.doc_id)+'">Удалить</button></td>'
+        + '</tr>';
+    }
+    html += '</tbody></table>';
+    wrap.innerHTML = html;
+    wrap.querySelectorAll('button.danger').forEach(b => b.addEventListener('click', () => del(b.dataset.id)));
+  } catch (e) {
+    wrap.innerHTML = '<p class="muted">Не удалось загрузить список.</p>';
+  }
+}
+
+async function upload(){
+  const files = $('files').files;
+  if (!files.length){ $('opStatus').textContent = 'Выберите PDF-файлы.'; return; }
+  const fd = new FormData();
+  for (const f of files) fd.append('files', f);
+  $('opStatus').textContent = 'Загрузка и индексация…';
+  $('uploadBtn').disabled = true;
+  try {
+    const r = await fetch('/admin/upload', { method: 'POST', headers: headers(), body: fd });
+    const data = await r.json();
+    const ok = (data.results||[]).filter(x=>x.ok).length;
+    const fail = (data.results||[]).filter(x=>!x.ok);
+    let msg = 'Готово: проиндексировано '+ok+' файл(ов).';
+    if (fail.length) msg += ' Ошибки: ' + fail.map(f=>esc(f.filename)+' — '+esc(f.error)).join('; ');
+    $('opStatus').innerHTML = msg;
+    $('files').value = '';
+    loadDocs();
+  } catch (e) {
+    $('opStatus').textContent = 'Ошибка загрузки.';
+  } finally {
+    $('uploadBtn').disabled = false;
+  }
+}
+
+async function reindex(){
+  $('opStatus').textContent = 'Переиндексация (может занять время)…';
+  $('reindexBtn').disabled = true;
+  try {
+    const r = await fetch('/admin/reindex', { method: 'POST', headers: headers() });
+    const s = await r.json();
+    $('opStatus').textContent = 'Переиндексировано: '+s.documents+' док., '+s.chunks+' чанков.';
+    loadDocs();
+  } catch (e) {
+    $('opStatus').textContent = 'Ошибка переиндексации.';
+  } finally {
+    $('reindexBtn').disabled = false;
+  }
+}
+
+async function del(docId){
+  if (!confirm('Удалить документ из индекса?')) return;
+  try {
+    await fetch('/admin/delete', {
+      method: 'POST', headers: headers({'Content-Type':'application/json'}),
+      body: JSON.stringify({doc_id: docId})
+    });
+    loadDocs();
+  } catch (e) { alert('Ошибка удаления.'); }
+}
+
+$('loginBtn').addEventListener('click', login);
+$('pw').addEventListener('keydown', e => { if (e.key==='Enter') login(); });
+$('uploadBtn').addEventListener('click', upload);
+$('reindexBtn').addEventListener('click', reindex);
+</script>
+</body>
+</html>
