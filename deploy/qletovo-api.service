@@ -1,0 +1,17 @@
+[Unit]
+Description=Letovo assistant API (FastAPI)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=qletovo
+WorkingDirectory=/opt/qletovo
+EnvironmentFile=/opt/qletovo/.env
+# Слушаем все интерфейсы (за reverse-proxy/nginx с TLS).
+ExecStart=/opt/qletovo/.venv/bin/uvicorn app.server:app --host 0.0.0.0 --port 8765
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

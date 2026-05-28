@@ -1,0 +1,13 @@
+.git
+.venv
+venv
+__pycache__
+*.pyc
+.DS_Store
+.env
+.claude
+PLAN.md
+MIGRATION_NOTES.md
+README.md
+# Корпус и индекс — через том, не в образ (могут быть сотни МБ).
+data

@@ -1,6 +1,7 @@
 """RAG: retrieval -> контекст -> LLM -> ответ + детерминированные источники + отказы."""
 from __future__ import annotations
 
+import re
 import unicodedata
 import urllib.parse
 from collections import defaultdict
@@ -121,6 +122,24 @@ def _build_sources(
     return out
 
 
+_CITE_RE = re.compile(r"(?im)^[ \t>*\-]*источник[а-я]*\s*[:：]\s*([0-9 ,\.]+?)\s*$")
+
+
+def _parse_cited(answer: str, context_idx: list[int]) -> tuple[list[int], str]:
+    """Извлекает строку «ИСТОЧНИКИ: N, M» из ответа модели → индексы чанков + чистый текст.
+
+    Номера — 1-based позиции блоков [Источник N] в порядке КОНТЕКСТА (context_idx).
+    """
+    matches = list(_CITE_RE.finditer(answer))
+    if not matches:
+        return [], answer
+    m = matches[-1]
+    nums = [int(x) for x in re.findall(r"\d+", m.group(1))]
+    cited = [context_idx[n - 1] for n in nums if 1 <= n <= len(context_idx)]
+    clean = (answer[: m.start()] + answer[m.end():]).strip()
+    return cited, clean
+
+
 def _is_refusal(answer: str) -> bool:
     a = answer.strip().lower()
     return (
@@ -166,7 +185,14 @@ def answer_question(question: str, base_url: str, temperature: float = 0.0) -> d
             return {"answer": OFF_TOPIC, "sources": [], "status": "off_topic"}
         return {"answer": NO_DATA, "sources": [], "status": "not_found"}
 
-    sources = _build_sources(best_idx, base_url, sims=best_sims, limit=3)
+    # Источники — те блоки [Источник N], которые модель указала, что использовала.
+    cited_idx, answer = _parse_cited(answer, context_idx)
+    if not answer:  # на всякий случай: модель вернула только строку источников
+        return {"answer": NO_DATA, "sources": [], "status": "not_found"}
+    if cited_idx:
+        sources = _build_sources(cited_idx, base_url, limit=3)
+    else:
+        sources = _build_sources(best_idx, base_url, sims=best_sims, limit=3)
     return {"answer": answer, "sources": sources, "status": "answerable"}
 
 

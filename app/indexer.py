@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import numpy as np
@@ -10,6 +11,12 @@ from .config import settings
 from .embeddings import get_embedder
 from .ingest import build_chunks_for_pdf
 from .store import get_store
+
+
+def is_excluded(local_name: str) -> bool:
+    """Документы, исключённые из индекса по INDEX_EXCLUDE (учебные программы и т.п.)."""
+    pat = settings.index_exclude
+    return bool(pat) and re.search(pat, local_name or "") is not None
 
 
 def _load_source_urls(docs_dir: Path) -> dict[str, str]:
@@ -26,7 +33,6 @@ def _load_source_urls(docs_dir: Path) -> dict[str, str]:
 
 def _embed_for_index(chunk_dicts: list[dict]) -> np.ndarray:
     embedder = get_embedder()
-    # Префикс задачи помогает мультиязычным моделям; для Yandex 'doc' это no-op по смыслу.
     texts = [c["text"] for c in chunk_dicts]
     return embedder.embed_docs(texts)
 
@@ -47,22 +53,44 @@ def reindex_all(docs_dir: Path | None = None) -> dict:
     pdfs = sorted(p for p in docs_dir.glob("*.pdf") if p.is_file())
     all_chunks: list[dict] = []
     all_manifest: list[dict] = []
-    all_vectors: list[np.ndarray] = []
+    skipped: list[str] = []
     for pdf in pdfs:
-        chunk_dicts, manifest_entry = build_chunks_for_pdf(pdf, source_url=source_urls.get(pdf.name))
-        if not chunk_dicts:
+        if is_excluded(pdf.name):
+            skipped.append(f"{pdf.name}: исключён по INDEX_EXCLUDE")
             continue
-        vectors = _embed_for_index(chunk_dicts)
+        try:
+            chunk_dicts, manifest_entry = build_chunks_for_pdf(pdf, source_url=source_urls.get(pdf.name))
+        except Exception as exc:  # noqa: BLE001 — битый/нечитаемый PDF не должен ронять реиндексацию
+            skipped.append(f"{pdf.name}: {exc}")
+            continue
+        if not chunk_dicts:  # пустой текст (скан без OCR)
+            skipped.append(f"{pdf.name}: нет извлекаемого текста")
+            continue
         all_chunks.extend(chunk_dicts)
         all_manifest.append(manifest_entry)
-        all_vectors.append(vectors)
-    if all_vectors:
-        matrix = np.vstack(all_vectors)
-    else:
-        matrix = np.zeros((0, 0), dtype="float32")
+    # Эмбеддим все чанки одним проходом (батчи внутри embed_docs) — минимум запросов к API.
+    matrix = _embed_for_index(all_chunks) if all_chunks else np.zeros((0, 0), dtype="float32")
     get_store().replace_all(all_chunks, matrix, all_manifest)
     return {
         "documents": len(all_manifest),
         "chunks": len(all_chunks),
         "dim": int(matrix.shape[1]) if matrix.size else 0,
+        "skipped": len(skipped),
+        "skipped_detail": skipped[:20],
     }
+
+
+def prune_index() -> dict:
+    """Удаляет из УЖЕ собранного индекса документы, попадающие под INDEX_EXCLUDE,
+    не пересчитывая эмбеддинги (векторы уже есть). Быстрый способ перечистить индекс."""
+    store = get_store()
+    keep = [i for i, ch in enumerate(store.chunks) if not is_excluded(ch.get("local_name", ""))]
+    chunks = [store.chunks[i] for i in keep]
+    vectors = store.vectors[keep] if store.vectors.size and keep else (
+        store.vectors if keep else np.zeros((0, store.vectors.shape[1] if store.vectors.size else 0), "float32")
+    )
+    kept_docs = {ch["doc_id"] for ch in chunks}
+    manifest = [m for m in store.manifest if m.get("doc_id") in kept_docs]
+    removed = len(store.chunks) - len(chunks)
+    store.replace_all(chunks, np.asarray(vectors, dtype="float32"), manifest)
+    return {"kept_docs": len(manifest), "kept_chunks": len(chunks), "removed_chunks": removed}

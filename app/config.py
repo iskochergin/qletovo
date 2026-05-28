@@ -1,7 +1,9 @@
-"""Конфигурация загружается из .env (см. .env.example). Секреты в коде не хранятся."""
+"""Конфигурация загружается из .env (см. .env.example). Секреты в коде не хранятся.
+
+LLM и эмбеддинги — через OpenAI (ChatGPT) API или любой OpenAI-совместимый эндпоинт.
+"""
 from __future__ import annotations
 
-import logging
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -10,10 +12,6 @@ from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
-
-# Yandex SDK по умолчанию шумит на DEBUG (включая метаданные запросов) — приглушаем.
-for _name in ("yandex_cloud_ml_sdk", "yandex_ai_studio_sdk", "grpc"):
-    logging.getLogger(_name).setLevel(logging.WARNING)
 
 
 def _get(name: str, default: str = "") -> str:
@@ -41,22 +39,13 @@ class Settings:
     index_dir: Path = field(default_factory=lambda: BASE_DIR / "data" / "index")
     frontend_dir: Path = field(default_factory=lambda: BASE_DIR / "frontend")
 
-    # --- LLM ---
-    llm_provider: str = field(default_factory=lambda: _get("LLM_PROVIDER", "yandex"))
-    # Yandex
-    yandex_folder_id: str = field(default_factory=lambda: _get("YANDEX_FOLDER_ID"))
-    yandex_api_key: str = field(default_factory=lambda: _get("YANDEX_API_KEY"))
-    yandex_completion_model: str = field(
-        default_factory=lambda: _get("YANDEX_COMPLETION_MODEL", "yandexgpt-lite")
-    )
-    # OpenAI-compatible (used when LLM_PROVIDER=openai)
-    openai_base_url: str = field(default_factory=lambda: _get("OPENAI_BASE_URL"))
+    # --- OpenAI (ChatGPT) / OpenAI-совместимый эндпоинт ---
     openai_api_key: str = field(default_factory=lambda: _get("OPENAI_API_KEY"))
+    # Пусто => SDK использует https://api.openai.com/v1. Задайте для совместимого прокси.
+    openai_base_url: str = field(default_factory=lambda: _get("OPENAI_BASE_URL"))
     openai_model: str = field(default_factory=lambda: _get("OPENAI_MODEL", "gpt-4o-mini"))
-
-    # --- embeddings (Yandex; разделяет folder/key с LLM) ---
-    embeddings_provider: str = field(
-        default_factory=lambda: _get("EMBEDDINGS_PROVIDER", "yandex")
+    openai_embed_model: str = field(
+        default_factory=lambda: _get("OPENAI_EMBED_MODEL", "text-embedding-3-small")
     )
 
     # --- server ---
@@ -79,7 +68,14 @@ class Settings:
     max_snippet: int = field(default_factory=lambda: _get_int("MAX_SNIPPET", 1200))
     chunk_chars: int = field(default_factory=lambda: _get_int("CHUNK_CHARS", 900))
     chunk_overlap: int = field(default_factory=lambda: _get_int("CHUNK_OVERLAP", 200))
+    # Какие документы НЕ индексировать (regex по имени файла). По умолчанию исключаем
+    # учебные программы/ООП/рабочие программы — это объёмные педагогические документы,
+    # которые засоряют поиск по нормативным вопросам (приём, правила, оценивание, политики).
+    index_exclude: str = field(
+        default_factory=lambda: _get("INDEX_EXCLUDE", r"(?i)(?:^(?:OOP|RP|DOOP)|рабоч|programm|annotac|uchebny)")
+    )
     # Порог релевантности: если лучшее сходство ниже — вопрос считается вне зоны школы.
+    # Калибруется под модель эмбеддингов (для text-embedding-3-small см. README).
     offtopic_gate: float = field(default_factory=lambda: float(_get("OFFTOPIC_GATE", "0.30") or "0.30"))
 
     # --- crawler ---

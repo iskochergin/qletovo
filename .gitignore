@@ -12,7 +12,14 @@ venv/
 
 # regenerable index (rebuild with: python -m scripts.reindex)
 /data/index/
-/data/docs/_sources.json
+
+# Тяжёлый корпус PDF, собранный краулером, в git не храним (сотни МБ).
+# Воспроизводится из _sources.json: python -m scripts.fetch_sources.
+# _sources.json (карта файл->URL) — КОММИТИМ. Стартовые 3 PDF уже в истории.
+/data/docs/*.pdf
+!/data/docs/Кодекс-учащегося.pdf
+!/data/docs/Правила-приёма-2026-27.pdf
+!/data/docs/Приказ-107-о-20-08-2024-Положение-об-оценивании.pdf
 
 # os
 .DS_Store

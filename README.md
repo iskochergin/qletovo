@@ -58,18 +58,28 @@ pip install -r requirements.txt
 
 ```bash
 cp .env.example .env
-# заполните YANDEX_FOLDER_ID, YANDEX_API_KEY, TELEGRAM_TOKEN, ADMIN_PASSWORD, PUBLIC_BASE_URL
+# заполните OPENAI_API_KEY, TELEGRAM_TOKEN, ADMIN_PASSWORD, PUBLIC_BASE_URL
 ```
 
-LLM по умолчанию — **Yandex Cloud** (`yandexgpt-lite` + эмбеддинги 256-dim, RU-инфраструктура).
-Чтобы переключиться на любой OpenAI-совместимый провайдер: `LLM_PROVIDER=openai` и заполните
-`OPENAI_BASE_URL` / `OPENAI_API_KEY` / `OPENAI_MODEL`.
+LLM и эмбеддинги — **OpenAI (ChatGPT) API**:
+- `OPENAI_API_KEY` — ключ (sk-…) с https://platform.openai.com/api-keys;
+- `OPENAI_MODEL` — чат-модель ответов (по умолчанию `gpt-4o-mini`);
+- `OPENAI_EMBED_MODEL` — модель эмбеддингов (по умолчанию `text-embedding-3-small`, 1536-dim);
+- `OPENAI_BASE_URL` — пусто = `api.openai.com`; задайте для OpenAI-совместимого прокси.
+
+При смене модели эмбеддингов индекс нужно пересобрать (`python -m scripts.reindex`).
 
 ## Сборка индекса
 
 ```bash
 python -m scripts.reindex          # пересобрать индекс из всех PDF в data/docs
 ```
+
+Учебные программы (ООП, рабочие программы — объёмные педагогические документы на тысячи
+страниц) по умолчанию НЕ индексируются: они засоряют поиск по нормативным вопросам (приём,
+правила, оценивание, политики). Это управляется `INDEX_EXCLUDE` (regex по имени файла) в `.env`.
+Чтобы включить их в индекс, очистите `INDEX_EXCLUDE`. Прунинг уже собранного индекса без
+пересчёта эмбеддингов: `python -c "from app.indexer import prune_index; print(prune_index())"`.
 
 ## Запуск бэкенда
 
@@ -106,12 +116,29 @@ python -m app.crawl --no-sitemap          # без засева из sitemap.xml
 дедуп по sha1, метаданные (source_url) → `data/docs/_sources.json`. После краулинга запустите
 `python -m scripts.reindex`.
 
-> **Важно про letovo.ru.** Сайт — client-side SPA: в исходном HTML ссылок почти нет (даже на
-> странице «Сведения об образовательной организации» ссылки на PDF подставляются JavaScript-ом),
-> а файлы лежат под `/storage/`. Статический краулер их не видит. Варианты сбора PDF:
-> (1) залить документы вручную через `/admin`; (2) указать прямые URL из `/storage/`;
-> (3) добавить headless-рендеринг (Playwright) — задел оставлен, но в текущую сборку не входит.
-> Стартовый набор из 3 нормативных PDF уже лежит в `data/docs/` и проиндексирован.
+### Headless-краулер для letovo.ru (SPA)
+
+`letovo.ru` — client-side SPA: ссылки на PDF подставляются JavaScript-ом (файлы под `/storage/`),
+поэтому статический краулер их не видит. Для него есть headless-вариант на Playwright:
+
+```bash
+pip install -r requirements-crawl.txt
+python -m playwright install chromium
+# страница «Сведения об образовательной организации» — реестр всех документов школы (~277 PDF):
+python -m app.crawl_js --pages https://letovo.ru/o-shkole/svedenia-ob-obrazovatelnoy-organizacii
+python -m app.crawl_js          # или обойти все страницы из sitemap.xml
+python -m scripts.reindex       # затем пересобрать индекс
+```
+
+### Регидратация корпуса
+
+Тяжёлый набор PDF в git не хранится (сотни МБ), но `data/docs/_sources.json` (карта файл → URL)
+закоммичен. Восстановить корпус на новой машине без браузера:
+
+```bash
+python -m scripts.fetch_sources    # скачает все PDF из _sources.json
+python -m scripts.reindex
+```
 
 ## Админка
 
@@ -125,19 +152,52 @@ python -m eval.run                 # in-process
 python -m eval.run --api http://127.0.0.1:8765   # через HTTP
 ```
 
-Целевые метрики (раздел 5 ТЗ) и достигнутые на контрольном наборе из 17 вопросов:
+Целевые метрики (раздел 5 ТЗ) и достигнутые на контрольном наборе из 18 вопросов
+(корпус — 147 нормативных PDF; OpenAI gpt-4o-mini + text-embedding-3-small):
 
 | Метрика | Цель | Факт |
 |---|---|---|
-| Точность ответов | ≥ 85% | **100%** |
+| Точность ответов | ≥ 85% | **94%** |
 | Доля ответов с валидной ссылкой на страницу | ≥ 95% | **100%** |
-| Средняя задержка ответа | ≤ 20 c | **~2 c** |
+| Средняя задержка ответа | ≤ 20 c | **~6.5 c** |
 | Галлюцинации на вопросах без данных | 0 | **0** |
+
+## Деплой
+
+### Docker Compose (рекомендуется)
+
+```bash
+cp .env.example .env          # заполнить ключи; PUBLIC_BASE_URL=https://qletovo.ru
+# положить PDF в ./data/docs (краулером или scripts/fetch_sources.py)
+docker compose build
+docker compose run --rm api python -m scripts.reindex   # разовая сборка индекса
+docker compose up -d           # поднимет api (8765) и bot
+```
+
+`./data` смонтирован томом (PDF + индекс переживают пересборку образа). Бот ходит к API по
+имени сервиса (`http://api:8765`). Перед публичным доступом поставьте reverse-proxy (nginx)
+с TLS на порт 8765.
+
+### systemd (без Docker)
+
+Юниты — в `deploy/`. Предполагается код в `/opt/qletovo`, venv в `/opt/qletovo/.venv`,
+пользователь `qletovo`.
+
+```bash
+sudo cp deploy/qletovo-api.service deploy/qletovo-bot.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now qletovo-api qletovo-bot
+```
+
+API слушает `0.0.0.0:8765` (за nginx/TLS), бот — отдельный сервис, зависит от API.
 
 ## Известные ограничения
 
-- `yandexgpt-lite` — лёгкая модель; на сложных формулировках качество ниже, чем у полной
-  `yandexgpt`. Модель и провайдер меняются через `.env` без изменения кода.
-- Краулер не делает OCR: PDF-сканы без текстового слоя не индексируются.
-- Релевантностный гейт (`OFFTOPIC_GATE`, по умолчанию 0.30) отсекает явно посторонние
-  вопросы до обращения к LLM; при смене модели эмбеддингов порог стоит перепроверить.
+- Модель ответов задаётся в `.env` (`OPENAI_MODEL`): `gpt-4o-mini` — дёшево и качественно;
+  для сложных формулировок можно поставить `gpt-4o`.
+- Краулер не делает OCR: PDF-сканы без текстового слоя не индексируются (в корпусе letovo.ru
+  таких ~47 — для них нужен OCR-шаг).
+- Релевантностный гейт (`OFFTOPIC_GATE`) отсекает посторонние вопросы до обращения к LLM.
+  Порог зависит от модели эмбеддингов — для `text-embedding-3-small` его нужно
+  откалибровать после первой реиндексации (замерить top-сходство для вопросов «по теме»
+  и «вне темы»).

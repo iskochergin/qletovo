@@ -1,0 +1,5 @@
+# Доп. зависимости для headless-краулера SPA (app/crawl_js.py).
+# Ставится отдельно — в обслуживающий образ/сервис НЕ входит.
+#   pip install -r requirements-crawl.txt
+#   python -m playwright install chromium
+playwright>=1.40

@@ -1,0 +1,35 @@
+# Единый бэкенд + Telegram-бот на одном образе и общем индексе.
+# Перед запуском: заполните .env (см. .env.example) и положите PDF в ./data/docs
+# (через краулер или scripts/fetch_sources.py), затем разово соберите индекс:
+#   docker compose run --rm api python -m scripts.reindex
+
+services:
+  api:
+    build: .
+    image: qletovo-assistant
+    env_file: .env
+    environment:
+      API_HOST: 0.0.0.0
+      API_PORT: "8765"
+    ports:
+      - "8765:8765"
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8765/health').status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  bot:
+    image: qletovo-assistant
+    build: .
+    env_file: .env
+    environment:
+      # Бот ходит к API по имени сервиса внутри сети compose.
+      BACKEND_URL: http://api:8765
+    command: ["python", "-m", "telegram.bot"]
+    depends_on:
+      - api
+    restart: unless-stopped

@@ -103,6 +103,10 @@ class VectorStore:
             if self._normed.size == 0 or len(self.chunks) == 0:
                 return [], []
             q = np.asarray(query_vec, dtype="float32").ravel()
+            if q.shape[0] != self._normed.shape[1]:
+                # Размерность запроса не совпадает с индексом (сменили модель эмбеддингов?).
+                # Не падаем — индекс нужно пересобрать: python -m scripts.reindex
+                return [], []
             qn = q / (np.linalg.norm(q) or 1.0)
             sims = self._normed @ qn
             k = min(k, sims.shape[0])

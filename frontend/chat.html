@@ -92,6 +92,8 @@ const input = document.getElementById('input');
 const sendBtn = document.getElementById('send');
 
 function esc(s){ const d=document.createElement('div'); d.textContent=s==null?'':String(s); return d.innerHTML; }
+// минимальный рендер: экранируем, затем **жирный** и *курсив* (модель отвечает в markdown)
+function fmt(s){ return esc(s).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/(^|[^*])\*(?!\s)([^*\n]+?)\*(?!\*)/g,'$1<em>$2</em>'); }
 
 function addUser(text){
   const el = document.createElement('div');
@@ -108,7 +110,7 @@ function addThinking(){
 }
 
 function renderAnswer(el, data){
-  let html = '<div class="role">Ассистент</div><div class="text">'+esc(data.answer)+'</div>';
+  let html = '<div class="role">Ассистент</div><div class="text">'+fmt(data.answer)+'</div>';
   if (data.sources && data.sources.length){
     html += '<div class="sources"><div class="label">Источники</div>';
     for (const s of data.sources){
