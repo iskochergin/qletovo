@@ -18,7 +18,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app/ ./app/
 COPY frontend/ ./frontend/
-COPY telegram/ ./telegram/
 COPY scripts/ ./scripts/
 COPY eval/ ./eval/
 COPY media/ ./media/
@@ -28,6 +27,4 @@ RUN mkdir -p /app/data/docs /app/data/index
 
 EXPOSE 8765
 
-# По умолчанию — API. Бот запускается отдельным сервисом (см. compose) командой:
-#   python -m telegram.bot
 CMD ["uvicorn", "app.server:app", "--host", "0.0.0.0", "--port", "8765", "--proxy-headers", "--forwarded-allow-ips", "*"]

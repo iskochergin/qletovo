@@ -4,86 +4,141 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Админка — документы «Летово»</title>
+<meta name="theme-color" content="#143282" />
 <link rel="icon" href="/favicon.ico" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet" />
 <style>
-  :root { --fg:#111; --muted:#666; --line:#e3e3e3; --bg:#fff; }
-  * { box-sizing: border-box; }
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    color: var(--fg); background: var(--bg); margin: 0; line-height: 1.5;
+  :root{
+    --navy:#143282; --navy-d:#0e2455; --navy-l:#2a4ea8;
+    --gold:#f5c518; --gold-soft:#fff6d6;
+    --ink:#19203a; --muted:#6c7385; --line:#e9ecf4; --bg:#f6f8fc; --card:#fff;
+    --danger:#c0392b;
+    --shadow:0 6px 24px rgba(20,50,130,.08); --shadow-sm:0 2px 8px rgba(20,50,130,.06);
   }
-  .wrap { max-width: 820px; margin: 0 auto; padding: 24px 20px 60px; }
-  h1 { font-size: 18px; font-weight: 600; }
-  h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); margin-top: 32px; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
-  input, button { font: inherit; }
-  input[type=password], input[type=file] { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; width: 100%; }
-  button {
-    border: 1px solid var(--fg); background: var(--fg); color: #fff;
-    border-radius: 8px; padding: 9px 16px; cursor: pointer; margin-top: 10px;
+  *{box-sizing:border-box;}
+  body{
+    font-family:"Nunito",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    color:var(--ink); background:var(--bg); margin:0; line-height:1.5; -webkit-font-smoothing:antialiased;
   }
-  button.secondary { background: #fff; color: var(--fg); }
-  button.danger { background: #fff; color: #b00; border-color: #b00; padding: 4px 10px; margin: 0; font-size: 13px; }
-  button:disabled { opacity: .4; cursor: default; }
-  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-  table { width: 100%; border-collapse: collapse; margin-top: 12px; }
-  th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); font-size: 14px; vertical-align: top; }
-  th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; }
-  a { color: var(--fg); }
-  .muted { color: var(--muted); font-size: 13px; }
-  .status { margin-top: 10px; font-size: 14px; min-height: 20px; }
-  #panel { display: none; }
-  .hidden { display: none !important; }
+  header{
+    background:#fff; border-top:3px solid var(--navy); border-bottom:1px solid var(--line);
+    padding:12px 20px; display:flex; align-items:center; gap:12px; position:sticky; top:0; z-index:5;
+  }
+  header img{width:38px;height:38px;object-fit:contain;}
+  header h1{font-size:17px;font-weight:800;margin:0;color:var(--navy);}
+  header .sub{font-size:12px;color:var(--muted);font-weight:600;}
+  .wrap{max-width:760px; margin:0 auto; padding:24px 18px 60px;}
+  .card{background:var(--card); border:1px solid var(--line); border-radius:18px; box-shadow:var(--shadow-sm); padding:20px; margin-bottom:18px;}
+  h2{font-size:13px; text-transform:uppercase; letter-spacing:.6px; color:var(--muted); font-weight:800; margin:0 0 14px;}
+  label.lbl{display:block; font-weight:700; font-size:14px; margin-bottom:8px;}
+  input[type=password]{
+    width:100%; border:1.5px solid var(--line); border-radius:12px; padding:12px 14px; font:inherit;
+    color:var(--ink); background:#fff; outline:none; transition:border-color .15s,box-shadow .15s;
+  }
+  input[type=password]:focus{border-color:var(--navy); box-shadow:0 0 0 4px rgba(20,50,130,.10);}
+  .file{
+    display:flex; align-items:center; gap:12px; border:1.5px dashed var(--line); border-radius:12px;
+    padding:14px 16px; cursor:pointer; transition:border-color .15s, background .15s; background:#fbfcfe;
+  }
+  .file:hover{border-color:var(--navy-l); background:#f4f7fd;}
+  .file input{display:none;}
+  .file .ic{width:34px;height:34px;flex:none;border-radius:9px;background:var(--gold-soft);display:flex;align-items:center;justify-content:center;}
+  .file .ic svg{width:18px;height:18px;}
+  .file .t{font-weight:700;font-size:14px;} .file .h{font-size:12px;color:var(--muted);}
+  .row{display:flex; gap:10px; flex-wrap:wrap; margin-top:14px;}
+  button{font:inherit; font-weight:700; border-radius:12px; padding:11px 18px; cursor:pointer; border:1.5px solid var(--navy); transition:background .15s,transform .1s,box-shadow .15s;}
+  button.primary{background:var(--navy); color:#fff;}
+  button.primary:hover{background:var(--navy-d);}
+  button.secondary{background:#fff; color:var(--navy);}
+  button.secondary:hover{background:#f1f4fb;}
+  button:active{transform:scale(.98);}
+  button:disabled{opacity:.45; cursor:default;}
+  .status{margin-top:12px; font-size:14px; min-height:20px; color:var(--ink); font-weight:600;}
+  .status.err{color:var(--danger);}
+  /* doc list */
+  .doc{display:flex; align-items:center; gap:12px; border:1px solid var(--line); border-radius:12px; padding:11px 13px; margin-top:10px; background:#fff; transition:border-color .12s, box-shadow .12s;}
+  .doc:hover{border-color:var(--navy-l); box-shadow:var(--shadow-sm);}
+  .doc .ic{width:34px;height:34px;flex:none;border-radius:9px;background:var(--gold-soft);display:flex;align-items:center;justify-content:center;}
+  .doc .ic svg{width:18px;height:18px;}
+  .doc .meta{flex:1; min-width:0;}
+  .doc .ttl{font-weight:700;font-size:14.5px;color:var(--navy);text-decoration:none;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .doc .ttl:hover{text-decoration:underline;}
+  .doc .sub{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .doc .del{flex:none; border:1px solid #e7c3bd; color:var(--danger); background:#fff; border-radius:9px; padding:6px 12px; font-size:13px; font-weight:700;}
+  .doc .del:hover{background:#fdecea;}
+  .muted{color:var(--muted); font-size:13px;}
+  #panel{display:none;}
+  .hidden{display:none !important;}
+  .login-wrap{max-width:380px; margin:6vh auto 0;}
+  @media (max-width:600px){
+    header{padding:10px 14px;} .wrap{padding:18px 12px 48px;}
+    .card{padding:16px;border-radius:14px;}
+    .row button{flex:1;}
+    .doc .sub{white-space:normal;}
+  }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <h1>Админка — документы «Летово»</h1>
-
-  <div id="login">
-    <p class="muted">Введите пароль администратора (из .env → ADMIN_PASSWORD).</p>
-    <div style="max-width:320px">
-      <input id="pw" type="password" placeholder="Пароль" />
-      <button id="loginBtn">Войти</button>
+  <header>
+    <img src="/media/qletovo-logo.png" alt="Летово" />
+    <div>
+      <h1>Админка «Летово»</h1>
+      <div class="sub">Загрузка документов и переиндексация</div>
     </div>
-    <div class="status" id="loginStatus"></div>
-  </div>
+  </header>
 
-  <div id="panel">
-    <h2>Загрузить PDF</h2>
-    <input id="files" type="file" accept="application/pdf,.pdf" multiple />
-    <div class="row">
-      <button id="uploadBtn">Загрузить и проиндексировать</button>
-      <button id="reindexBtn" class="secondary">Полная переиндексация</button>
+  <div class="wrap">
+    <div id="login" class="login-wrap">
+      <div class="card">
+        <h2>Вход</h2>
+        <label class="lbl" for="pw">Пароль администратора</label>
+        <input id="pw" type="password" placeholder="ADMIN_PASSWORD из .env" autocomplete="current-password" />
+        <div class="row"><button id="loginBtn" class="primary" style="flex:1">Войти</button></div>
+        <div class="status" id="loginStatus"></div>
+      </div>
     </div>
-    <div class="status" id="opStatus"></div>
 
-    <h2>Проиндексированные документы</h2>
-    <div id="docsWrap"><p class="muted">Загрузка…</p></div>
+    <div id="panel">
+      <div class="card">
+        <h2>Загрузить PDF</h2>
+        <label class="file" for="files">
+          <span class="ic"><svg viewBox="0 0 24 24" fill="none"><path d="M12 16V6m0 0l-4 4m4-4l4 4" stroke="#143282" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 18h14" stroke="#143282" stroke-width="1.8" stroke-linecap="round"/></svg></span>
+          <span><span class="t" id="fileLabel">Выберите PDF-файлы</span><br><span class="h">можно несколько; добавятся в индекс автоматически</span></span>
+          <input id="files" type="file" accept="application/pdf,.pdf" multiple />
+        </label>
+        <div class="row">
+          <button id="uploadBtn" class="primary">Загрузить и проиндексировать</button>
+          <button id="reindexBtn" class="secondary">Полная переиндексация</button>
+        </div>
+        <div class="status" id="opStatus"></div>
+      </div>
+
+      <div class="card">
+        <h2 id="docsTitle">Проиндексированные документы</h2>
+        <div id="docsWrap"><p class="muted">Загрузка…</p></div>
+      </div>
+    </div>
   </div>
-</div>
 
 <script>
 let PW = "";
-
 const $ = (id) => document.getElementById(id);
 function esc(s){ const d=document.createElement('div'); d.textContent=s==null?'':String(s); return d.innerHTML; }
 function headers(extra){ return Object.assign({'X-Admin-Password': PW}, extra||{}); }
+const DOC_ICON='<svg viewBox="0 0 24 24" fill="none"><path d="M6 2h8l4 4v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z" stroke="#143282" stroke-width="1.6"/><path d="M14 2v5h5" stroke="#143282" stroke-width="1.6"/></svg>';
 
 async function login(){
   PW = $('pw').value;
-  $('loginStatus').textContent = 'Проверка…';
+  $('loginStatus').textContent = 'Проверка…'; $('loginStatus').classList.remove('err');
   try {
-    const r = await fetch('/admin/login', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({password: PW})
-    });
+    const r = await fetch('/admin/login', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({password: PW})});
     if (!r.ok) throw new Error('bad');
     $('login').classList.add('hidden');
     $('panel').style.display = 'block';
     loadDocs();
-  } catch (e) {
-    $('loginStatus').textContent = 'Неверный пароль.';
-  }
+  } catch (e) { $('loginStatus').textContent = 'Неверный пароль.'; $('loginStatus').classList.add('err'); }
 }
 
 async function loadDocs(){
@@ -92,70 +147,59 @@ async function loadDocs(){
   try {
     const r = await fetch('/admin/docs', { headers: headers() });
     const docs = await r.json();
+    $('docsTitle').textContent = 'Проиндексированные документы · ' + docs.length;
     if (!docs.length){ wrap.innerHTML = '<p class="muted">Документов пока нет.</p>'; return; }
-    let html = '<table><thead><tr><th>Документ</th><th>Стр.</th><th>Чанков</th><th></th></tr></thead><tbody>';
+    wrap.innerHTML = '';
     for (const d of docs){
-      html += '<tr>'
-        + '<td><a href="'+esc(d.url)+'" target="_blank" rel="noopener">'+esc(d.title || d.local_name)+'</a><div class="muted">'+esc(d.local_name)+'</div></td>'
-        + '<td>'+esc(d.page_count ?? '')+'</td>'
-        + '<td>'+esc(d.n_chunks ?? '')+'</td>'
-        + '<td><button class="danger" data-id="'+esc(d.doc_id)+'">Удалить</button></td>'
-        + '</tr>';
+      const el = document.createElement('div'); el.className='doc';
+      el.innerHTML =
+        '<span class="ic">'+DOC_ICON+'</span>'
+        + '<span class="meta"><a class="ttl" href="'+esc(d.url)+'" target="_blank" rel="noopener">'+esc(d.title || d.local_name)+'</a>'
+        + '<span class="sub">'+esc(d.local_name)+' · '+esc(d.page_count ?? '?')+' стр. · '+esc(d.n_chunks ?? '?')+' фрагм.</span></span>'
+        + '<button class="del" data-id="'+esc(d.doc_id)+'">Удалить</button>';
+      el.querySelector('.del').addEventListener('click', () => del(d.doc_id));
+      wrap.appendChild(el);
     }
-    html += '</tbody></table>';
-    wrap.innerHTML = html;
-    wrap.querySelectorAll('button.danger').forEach(b => b.addEventListener('click', () => del(b.dataset.id)));
-  } catch (e) {
-    wrap.innerHTML = '<p class="muted">Не удалось загрузить список.</p>';
-  }
+  } catch (e) { wrap.innerHTML = '<p class="muted">Не удалось загрузить список.</p>'; }
 }
 
 async function upload(){
   const files = $('files').files;
-  if (!files.length){ $('opStatus').textContent = 'Выберите PDF-файлы.'; return; }
+  if (!files.length){ $('opStatus').textContent = 'Сначала выберите PDF-файлы.'; $('opStatus').classList.add('err'); return; }
   const fd = new FormData();
   for (const f of files) fd.append('files', f);
-  $('opStatus').textContent = 'Загрузка и индексация…';
+  $('opStatus').classList.remove('err'); $('opStatus').textContent = 'Загрузка и индексация…';
   $('uploadBtn').disabled = true;
   try {
     const r = await fetch('/admin/upload', { method: 'POST', headers: headers(), body: fd });
     const data = await r.json();
     const ok = (data.results||[]).filter(x=>x.ok).length;
     const fail = (data.results||[]).filter(x=>!x.ok);
-    let msg = 'Готово: проиндексировано '+ok+' файл(ов).';
+    let msg = 'Готово: проиндексировано ' + ok + ' файл(ов).';
     if (fail.length) msg += ' Ошибки: ' + fail.map(f=>esc(f.filename)+' — '+esc(f.error)).join('; ');
     $('opStatus').innerHTML = msg;
-    $('files').value = '';
+    $('files').value = ''; $('fileLabel').textContent = 'Выберите PDF-файлы';
     loadDocs();
-  } catch (e) {
-    $('opStatus').textContent = 'Ошибка загрузки.';
-  } finally {
-    $('uploadBtn').disabled = false;
-  }
+  } catch (e) { $('opStatus').textContent = 'Ошибка загрузки.'; $('opStatus').classList.add('err'); }
+  finally { $('uploadBtn').disabled = false; }
 }
 
 async function reindex(){
-  $('opStatus').textContent = 'Переиндексация (может занять время)…';
+  $('opStatus').classList.remove('err'); $('opStatus').textContent = 'Переиндексация (может занять время)…';
   $('reindexBtn').disabled = true;
   try {
     const r = await fetch('/admin/reindex', { method: 'POST', headers: headers() });
     const s = await r.json();
-    $('opStatus').textContent = 'Переиндексировано: '+s.documents+' док., '+s.chunks+' чанков.';
+    $('opStatus').textContent = 'Переиндексировано: ' + s.documents + ' док., ' + s.chunks + ' фрагментов.';
     loadDocs();
-  } catch (e) {
-    $('opStatus').textContent = 'Ошибка переиндексации.';
-  } finally {
-    $('reindexBtn').disabled = false;
-  }
+  } catch (e) { $('opStatus').textContent = 'Ошибка переиндексации.'; $('opStatus').classList.add('err'); }
+  finally { $('reindexBtn').disabled = false; }
 }
 
 async function del(docId){
   if (!confirm('Удалить документ из индекса?')) return;
   try {
-    await fetch('/admin/delete', {
-      method: 'POST', headers: headers({'Content-Type':'application/json'}),
-      body: JSON.stringify({doc_id: docId})
-    });
+    await fetch('/admin/delete', { method: 'POST', headers: headers({'Content-Type':'application/json'}), body: JSON.stringify({doc_id: docId}) });
     loadDocs();
   } catch (e) { alert('Ошибка удаления.'); }
 }
@@ -164,6 +208,10 @@ $('loginBtn').addEventListener('click', login);
 $('pw').addEventListener('keydown', e => { if (e.key==='Enter') login(); });
 $('uploadBtn').addEventListener('click', upload);
 $('reindexBtn').addEventListener('click', reindex);
+$('files').addEventListener('change', () => {
+  const n = $('files').files.length;
+  $('fileLabel').textContent = n ? (n + ' файл(ов) выбрано') : 'Выберите PDF-файлы';
+});
 </script>
 </body>
 </html>

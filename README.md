@@ -2,7 +2,7 @@
 
 ИИ-ассистент, который отвечает на вопросы **только** по официальным PDF-документам школы
 и **всегда** даёт ссылку на конкретную страницу первоисточника (`.../doc.pdf#page=N`).
-Один бэкенд обслуживает два клиента: **веб-чат** (чёрно-белый минимализм) и **Telegram-бот**.
+Фронтенд — веб-чат в фирменных цветах школы.
 
 Если ответа в документах нет — ассистент честно отвечает
 «В документах школы нет данных по этому вопросу.» и ничего не выдумывает. На посторонние
@@ -11,9 +11,8 @@
 ## Архитектура
 
 ```
-[ Веб-чат (frontend/chat.html) ]      [ Telegram-бот (telegram/bot.py) ]
-              │                                      │
-              └──────────────────┬───────────────────┘
+              [ Веб-чат (frontend/chat.html) ]
+                                 │
                                  ▼
                      Backend API — FastAPI (app/)
             POST /query · GET /manifest · /admin* (пароль)
@@ -21,18 +20,17 @@
         ┌────────────────────────┼─────────────────────────┐
         ▼                        ▼                          ▼
    Ingestion (app/ingest)   Vector store (app/store)   LLM (app/llm)
-   PyMuPDF, постранично     numpy flat-cosine,         Yandex (default)
-                            инкрементальный            | OpenAI-совместимый
+   PyMuPDF + OCR,           numpy flat-cosine,         OpenAI gpt-4o-mini
+   постранично              инкрементальный            (REST через requests)
                                  ▲
-                            Embeddings (app/embeddings) — Yandex 256-dim
+              Embeddings (app/embeddings) — OpenAI text-embedding-3-small
 ```
 
 ## Структура
 
 ```
-app/            бэкенд: config, embeddings, llm, store, ingest, indexer, rag, crawl, server
-frontend/       chat.html (Ч/Б чат) + admin.html (админка с паролем)
-telegram/       bot.py + config.py (Telegram-бот на общем /query)
+app/            бэкенд: config, embeddings, llm, openai_rest, store, ingest, indexer, rag, crawl, server
+frontend/       chat.html (веб-чат) + admin.html (админка с паролем)
 data/docs/      PDF-документы (источники)
 data/index/     индекс: chunks.json, vectors.npy, manifest.json (пересобираемый)
 eval/           questions.yaml + run.py (проверка метрик)
@@ -58,7 +56,7 @@ pip install -r requirements.txt
 
 ```bash
 cp .env.example .env
-# заполните OPENAI_API_KEY, TELEGRAM_TOKEN, ADMIN_PASSWORD, PUBLIC_BASE_URL
+# заполните OPENAI_API_KEY, ADMIN_PASSWORD (PUBLIC_BASE_URL — по желанию)
 ```
 
 LLM и эмбеддинги — **OpenAI (ChatGPT) API**:
@@ -104,16 +102,6 @@ python -m app.server               # http://127.0.0.1:8765
 
 **Память диалога.** Поле `history` в `/query` даёт память диалога — короткие уточнения вроде
 «а разве не 8 баллов?» работают в контексте предыдущих вопросов (фронт шлёт последние реплики).
-
-## Telegram-бот
-
-Бот ходит на общий бэкенд (`BACKEND_URL` → `/query`), поэтому ответы идентичны вебу.
-
-```bash
-python -m telegram.bot             # бэкенд должен быть запущен
-```
-
-Команды: `/start`, `/help`, `/docs`. Есть анти-спам (5 c) и дневной лимит (30 запросов).
 
 ## Краулер (сбор PDF с сайта)
 
@@ -183,12 +171,11 @@ cp .env.example .env          # заполнить ключи (OPENAI_API_KEY и
 # положить PDF в ./data/docs (краулером или scripts/fetch_sources.py)
 docker compose build
 docker compose run --rm api python -m scripts.reindex   # разовая сборка индекса
-docker compose up -d           # поднимет api (8765) и bot
+docker compose up -d           # поднимет api на :8765
 ```
 
-`./data` смонтирован томом (PDF + индекс переживают пересборку образа). Бот ходит к API по
-имени сервиса (`http://api:8765`). Перед публичным доступом поставьте reverse-proxy (nginx)
-с TLS на порт 8765.
+`./data` смонтирован томом (PDF + индекс переживают пересборку образа). Перед публичным
+доступом поставьте reverse-proxy (nginx) с TLS на порт 8765.
 
 ### Домен и ссылки на PDF
 
@@ -204,22 +191,21 @@ location / {
 }
 ```
 
-Задавайте `PUBLIC_BASE_URL=https://ваш-домен` в `.env` **только** если используете Telegram-бот
-(он обращается к бэкенду по внутреннему адресу, поэтому ему нужен явный публичный домен для
-кнопок-ссылок) или хотите зафиксировать канонический домен.
+Задавайте `PUBLIC_BASE_URL=https://ваш-домен` в `.env` **только** если хотите зафиксировать
+канонический домен (для веб-чата — оставляйте пустым, домен берётся из запроса).
 
 ### systemd (без Docker)
 
-Юниты — в `deploy/`. Предполагается код в `/opt/qletovo`, venv в `/opt/qletovo/.venv`,
+Юнит — в `deploy/`. Предполагается код в `/opt/qletovo`, venv в `/opt/qletovo/.venv`,
 пользователь `qletovo`.
 
 ```bash
-sudo cp deploy/qletovo-api.service deploy/qletovo-bot.service /etc/systemd/system/
+sudo cp deploy/qletovo-api.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable --now qletovo-api qletovo-bot
+sudo systemctl enable --now qletovo-api
 ```
 
-API слушает `0.0.0.0:8765` (за nginx/TLS), бот — отдельный сервис, зависит от API.
+API слушает `0.0.0.0:8765` (за nginx/TLS).
 
 ## Известные ограничения
 

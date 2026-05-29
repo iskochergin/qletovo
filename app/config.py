@@ -57,10 +57,6 @@ class Settings:
     # --- admin ---
     admin_password: str = field(default_factory=lambda: _get("ADMIN_PASSWORD", "change-me"))
 
-    # --- telegram ---
-    telegram_token: str = field(default_factory=lambda: _get("TELEGRAM_TOKEN"))
-    backend_url: str = field(default_factory=lambda: _get("BACKEND_URL", "http://127.0.0.1:8765"))
-
     # --- RAG params ---
     top_k: int = field(default_factory=lambda: _get_int("TOP_K", 10))
     best_k: int = field(default_factory=lambda: _get_int("BEST_K", 6))

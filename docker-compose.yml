@@ -1,4 +1,4 @@
-# Единый бэкенд + Telegram-бот на одном образе и общем индексе.
+# Бэкенд веб-чата по документам школы на общем индексе.
 # Перед запуском: заполните .env (см. .env.example) и положите PDF в ./data/docs
 # (через краулер или scripts/fetch_sources.py), затем разово соберите индекс:
 #   docker compose run --rm api python -m scripts.reindex
@@ -21,15 +21,3 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
-
-  bot:
-    image: qletovo-assistant
-    build: .
-    env_file: .env
-    environment:
-      # Бот ходит к API по имени сервиса внутри сети compose.
-      BACKEND_URL: http://api:8765
-    command: ["python", "-m", "telegram.bot"]
-    depends_on:
-      - api
-    restart: unless-stopped

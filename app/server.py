@@ -1,8 +1,7 @@
-"""FastAPI: общий бэкенд для веб-чата и Telegram-бота.
+"""FastAPI: бэкенд веб-чата по документам школы «Летово».
 
 Эндпоинты:
   POST /query            — задать вопрос (основной)
-  POST /ask              — алиас /query (обратная совместимость с ботом)
   GET  /manifest         — список проиндексированных документов
   GET  /health
   GET  /                 — Ч/Б веб-чат
@@ -56,7 +55,7 @@ class QueryOut(BaseModel):
     answer: str
     sources: list
     status: str
-    text: str  # ответ + блок «Источники» (markdown) — удобно боту
+    text: str  # ответ + блок «Источники» (markdown)
 
 
 def _base_url(request: Request) -> str:
@@ -65,7 +64,7 @@ def _base_url(request: Request) -> str:
     Без хардкода домена: по умолчанию берём домен из самого запроса (какой адрес открыли —
     такие и ссылки), учитывая заголовки reverse-proxy (X-Forwarded-Proto/Host) — за nginx это
     даст публичный https-домен. PUBLIC_BASE_URL в .env — необязательный явный override
-    (нужен, например, Telegram-боту, который ходит к бэкенду по внутреннему адресу).
+    (если нужен фиксированный канонический домен).
     """
     if settings.public_base_url:
         return settings.public_base_url.rstrip("/")
@@ -97,11 +96,6 @@ def query(payload: QueryIn, request: Request):
         status=data["status"],
         text=to_markdown(data["answer"], data["sources"]),
     )
-
-
-@app.post("/ask", response_model=QueryOut)
-def ask(payload: QueryIn, request: Request):
-    return query(payload, request)
 
 
 @app.get("/manifest")
