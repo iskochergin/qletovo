@@ -214,6 +214,10 @@ def admin_delete(payload: DeleteIn, _: None = Depends(require_admin)):
             local_name = m.get("local_name")
             break
     removed = store.remove_document(payload.doc_id)
+    if local_name:
+        from .indexer import save_title_override
+
+        save_title_override(local_name, "")  # убрать сохранённое название (пустое = удалить)
     if payload.delete_file and local_name:
         from .rag import resolve_local_filename
 
