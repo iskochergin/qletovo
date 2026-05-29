@@ -51,6 +51,8 @@
   button{font:inherit; font-weight:700; border-radius:12px; padding:11px 18px; cursor:pointer; border:1.5px solid var(--navy); transition:background .15s,transform .1s,box-shadow .15s;}
   button.primary{background:var(--navy); color:#fff;}
   button.primary:hover{background:var(--navy-d);}
+  button.primary.cancel{background:var(--danger); border-color:var(--danger);}
+  button.primary.cancel:hover{background:#a93226;}
   button.secondary{background:#fff; color:var(--navy);}
   button.secondary:hover{background:#f1f4fb;}
   button:active{transform:scale(.98);}
@@ -72,7 +74,7 @@
   .doc .meta{flex:1; min-width:0;}
   .doc .ttl{font-weight:700;font-size:14.5px;color:var(--navy);text-decoration:none;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .doc .ttl:hover{text-decoration:underline;}
-  .doc .sub{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .doc .sub{display:block;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .doc .edit{flex:none; border:1px solid var(--line); color:var(--navy); background:#fff; border-radius:9px; padding:6px 11px; font-size:13px; font-weight:700; margin-right:6px;}
   .doc .edit:hover{background:#f1f4fb;}
   .doc .del{flex:none; border:1px solid #e7c3bd; color:var(--danger); background:#fff; border-radius:9px; padding:6px 12px; font-size:13px; font-weight:700;}
@@ -175,7 +177,9 @@ async function loadDocs(){
   } catch (e) { wrap.innerHTML = '<p class="muted">Не удалось загрузить список.</p>'; }
 }
 
+let uploadCtrl = null;
 async function upload(){
+  if (uploadCtrl){ uploadCtrl.abort(); return; }   // повторный клик во время загрузки = отмена
   const files = $('files').files;
   if (!files.length){ $('opStatus').textContent = 'Сначала выберите PDF-файлы.'; $('opStatus').classList.add('err'); return; }
   const fd = new FormData();
@@ -183,9 +187,10 @@ async function upload(){
   // названия — параллельно файлам, в том же порядке
   $('fileList').querySelectorAll('.frow input').forEach(inp => fd.append('titles', inp.value || ''));
   $('opStatus').classList.remove('err'); $('opStatus').textContent = 'Загрузка и индексация…';
-  $('uploadBtn').disabled = true;
+  uploadCtrl = new AbortController();
+  $('uploadBtn').textContent = 'Отменить загрузку'; $('uploadBtn').classList.add('cancel');
   try {
-    const r = await fetch('/admin/upload', { method: 'POST', headers: headers(), body: fd });
+    const r = await fetch('/admin/upload', { method: 'POST', headers: headers(), body: fd, signal: uploadCtrl.signal });
     const data = await r.json();
     const ok = (data.results||[]).filter(x=>x.ok).length;
     const fail = (data.results||[]).filter(x=>!x.ok);
@@ -194,8 +199,13 @@ async function upload(){
     $('opStatus').innerHTML = msg;
     $('files').value = ''; $('fileLabel').textContent = 'Выберите PDF-файлы'; $('fileList').innerHTML = '';
     loadDocs();
-  } catch (e) { $('opStatus').textContent = 'Ошибка загрузки.'; $('opStatus').classList.add('err'); }
-  finally { $('uploadBtn').disabled = false; }
+  } catch (e) {
+    if (e.name === 'AbortError'){ $('opStatus').textContent = 'Загрузка отменена.'; loadDocs(); }
+    else { $('opStatus').textContent = 'Ошибка загрузки.'; $('opStatus').classList.add('err'); }
+  } finally {
+    uploadCtrl = null;
+    $('uploadBtn').textContent = 'Загрузить и проиндексировать'; $('uploadBtn').classList.remove('cancel');
+  }
 }
 
 async function renameDoc(docId, current){
