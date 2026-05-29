@@ -68,6 +68,8 @@ class Settings:
     max_snippet: int = field(default_factory=lambda: _get_int("MAX_SNIPPET", 1200))
     chunk_chars: int = field(default_factory=lambda: _get_int("CHUNK_CHARS", 900))
     chunk_overlap: int = field(default_factory=lambda: _get_int("CHUNK_OVERLAP", 200))
+    # Жёсткий потолок на число блоков в контексте LLM — чтобы промпт не раздувался и ответ был быстрым.
+    context_max_blocks: int = field(default_factory=lambda: _get_int("CONTEXT_MAX_BLOCKS", 12))
     # Какие документы НЕ индексировать (regex по имени файла). По умолчанию исключаем
     # учебные программы/ООП/рабочие программы — это объёмные педагогические документы,
     # которые засоряют поиск по нормативным вопросам (приём, правила, оценивание, политики).

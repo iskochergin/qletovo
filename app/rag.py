@@ -48,27 +48,34 @@ def pdf_page_url(local_name: str, page: int | None, base_url: str) -> str:
 
 
 def _expand_by_pages(indices: list[int]) -> list[int]:
-    """Добавляет соседние страницы того же документа (PAGE_WINDOW) для полноты контекста."""
+    """Лучшие чанки (ранжированные) + чанки соседних страниц (PAGE_WINDOW), с жёстким лимитом
+    на общее число блоков (CONTEXT_MAX_BLOCKS), чтобы промпт не раздувался и ответ был быстрым."""
     store = get_store()
     chunks = store.chunks
-    selected = set(indices)
-    by_doc: dict[str, set[int]] = defaultdict(set)
-    for i in indices:
-        ch = chunks[i]
-        if ch.get("page"):
-            by_doc[ch.get("doc_id")].add(int(ch["page"]))
-    wanted: dict[str, set[int]] = {}
-    for doc_id, pages in by_doc.items():
-        w: set[int] = set()
-        for p in pages:
-            for q in range(p - settings.page_window, p + settings.page_window + 1):
-                w.add(q)
-        wanted[doc_id] = w
-    for j, ch in enumerate(chunks):
-        did = ch.get("doc_id")
-        if did in wanted and int(ch.get("page") or 0) in wanted[did]:
-            selected.add(j)
-    return sorted(selected)
+    cap = max(settings.context_max_blocks, len(indices))
+    selected = list(indices)  # ранжированные лучшие — в приоритете
+    seen = set(indices)
+    if settings.page_window >= 0:
+        by_doc: dict[str, set[int]] = defaultdict(set)
+        for i in indices:
+            ch = chunks[i]
+            if ch.get("page"):
+                by_doc[ch.get("doc_id")].add(int(ch["page"]))
+        wanted: dict[str, set[int]] = {}
+        for doc_id, pages in by_doc.items():
+            w: set[int] = set()
+            for p in pages:
+                for q in range(p - settings.page_window, p + settings.page_window + 1):
+                    w.add(q)
+            wanted[doc_id] = w
+        for j, ch in enumerate(chunks):
+            if len(selected) >= cap:
+                break
+            did = ch.get("doc_id")
+            if j not in seen and did in wanted and int(ch.get("page") or 0) in wanted[did]:
+                selected.append(j)
+                seen.add(j)
+    return selected[:cap]
 
 
 def _build_context(indices: list[int]) -> str:
