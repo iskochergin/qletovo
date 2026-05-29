@@ -170,6 +170,8 @@ python -m eval.run --api http://127.0.0.1:8765   # через HTTP
 
 ## Деплой
 
+> **Полная инструкция по серверу (Docker + nginx + HTTPS, обновление, бэкап) — в [DEPLOY.md](DEPLOY.md).**
+
 ### Docker Compose (рекомендуется)
 
 ```bash
