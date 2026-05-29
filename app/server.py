@@ -42,6 +42,8 @@ app.mount("/files", StaticFiles(directory=str(settings.docs_dir)), name="files")
 
 FRONTEND = Path(settings.frontend_dir)
 MEDIA = Path(__file__).resolve().parent.parent / "media"
+if MEDIA.exists():
+    app.mount("/media", StaticFiles(directory=str(MEDIA)), name="media")
 
 
 class QueryIn(BaseModel):
