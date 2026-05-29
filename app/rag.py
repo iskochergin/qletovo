@@ -163,7 +163,6 @@ def answer_question(question: str, base_url: str, temperature: float = 0.0, hist
         return {"answer": OFF_TOPIC, "sources": [], "status": "off_topic"}
 
     from .embeddings import get_embedder
-    from .schools import target_school_dialog
 
     # Контекст диалога для поиска: к короткому уточнению («а разве не 8?») добавляем
     # предыдущий вопрос пользователя, иначе ретривал не найдёт нужные документы.
@@ -172,12 +171,14 @@ def answer_question(question: str, base_url: str, temperature: float = 0.0, hist
         if turn.get("role") == "user" and (turn.get("content") or "").strip():
             prev_user = turn["content"].strip()[:300]
             break
-    retrieval_text = f"{prev_user}\n{question}" if prev_user else question
+    # Предыдущий вопрос добавляем к поиску ТОЛЬКО для коротких уточнений-фрагментов
+    # («а разве не 8?»). Полноценный вопрос ищем как есть, чтобы прошлая тема его не «загрязняла».
+    is_followup = len(question.split()) <= 4
+    retrieval_text = f"{prev_user}\n{question}" if (prev_user and is_followup) else question
 
     store = get_store()
-    school = target_school_dialog(question, prev_user)
     qvec = get_embedder().embed_query(retrieval_text)
-    top_idx, sims = store.search(qvec, settings.top_k, school_filter=school)
+    top_idx, sims = store.search(qvec, settings.top_k)
 
     if not top_idx:
         return {"answer": NO_DATA_USER, "sources": [], "status": "not_found"}
