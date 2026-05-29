@@ -43,6 +43,7 @@ class VectorStore:
         self.manifest: list[dict] = []
         self.vectors = np.zeros((0, 0), dtype="float32")
         self._normed = np.zeros((0, 0), dtype="float32")
+        self._schools = np.array([], dtype=object)
         self.load()
 
     # --- persistence ---------------------------------------------------
@@ -81,6 +82,7 @@ class VectorStore:
             _atomic_write_bytes(self._vectors_path, lambda fh: np.save(fh, self.vectors))
 
     def _recompute_norm(self) -> None:
+        self._schools = np.array([c.get("school", "main") for c in self.chunks], dtype=object)
         if self.vectors.size == 0:
             self._normed = self.vectors
             return
@@ -98,7 +100,7 @@ class VectorStore:
     def has_sha1(self, sha1: str) -> bool:
         return any(m.get("sha1") == sha1 for m in self.manifest)
 
-    def search(self, query_vec: np.ndarray, k: int) -> tuple[list[int], list[float]]:
+    def search(self, query_vec: np.ndarray, k: int, school_filter: str | None = None) -> tuple[list[int], list[float]]:
         with self._lock:
             if self._normed.size == 0 or len(self.chunks) == 0:
                 return [], []
@@ -109,10 +111,24 @@ class VectorStore:
                 return [], []
             qn = q / (np.linalg.norm(q) or 1.0)
             sims = self._normed @ qn
+            if school_filter and self._schools.size == sims.shape[0]:
+                if school_filter == "junior":
+                    allowed = self._schools == "junior"
+                else:  # "main": всё, кроме документов Джуниор
+                    allowed = self._schools != "junior"
+                if allowed.any():
+                    sims = np.where(allowed, sims, -np.inf)
             k = min(k, sims.shape[0])
             idx = np.argpartition(-sims, k - 1)[:k]
             idx = idx[np.argsort(-sims[idx])]
-            return idx.tolist(), sims[idx].tolist()
+            out_idx, out_sim = [], []
+            for i in idx:
+                s = float(sims[i])
+                if s == float("-inf"):
+                    continue
+                out_idx.append(int(i))
+                out_sim.append(s)
+            return out_idx, out_sim
 
     # --- write (incremental) ------------------------------------------
     def add_document(self, manifest_entry: dict, chunk_dicts: list[dict], vectors: np.ndarray) -> None:

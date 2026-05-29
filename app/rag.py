@@ -150,16 +150,27 @@ def _is_refusal(answer: str) -> bool:
     )
 
 
-def answer_question(question: str, base_url: str, temperature: float = 0.0) -> dict:
+def answer_question(question: str, base_url: str, temperature: float = 0.0, history: list[dict] | None = None) -> dict:
     question = (question or "").strip()
     if not question:
         return {"answer": OFF_TOPIC, "sources": [], "status": "off_topic"}
 
     from .embeddings import get_embedder
+    from .schools import target_school_dialog
+
+    # Контекст диалога для поиска: к короткому уточнению («а разве не 8?») добавляем
+    # предыдущий вопрос пользователя, иначе ретривал не найдёт нужные документы.
+    prev_user = ""
+    for turn in reversed(history or []):
+        if turn.get("role") == "user" and (turn.get("content") or "").strip():
+            prev_user = turn["content"].strip()[:300]
+            break
+    retrieval_text = f"{prev_user}\n{question}" if prev_user else question
 
     store = get_store()
-    qvec = get_embedder().embed_query(question)
-    top_idx, sims = store.search(qvec, settings.top_k)
+    school = target_school_dialog(question, prev_user)
+    qvec = get_embedder().embed_query(retrieval_text)
+    top_idx, sims = store.search(qvec, settings.top_k, school_filter=school)
 
     if not top_idx:
         return {"answer": NO_DATA, "sources": [], "status": "not_found"}
@@ -174,7 +185,7 @@ def answer_question(question: str, base_url: str, temperature: float = 0.0) -> d
     context = _build_context(context_idx)
 
     user_msg = f"КОНТЕКСТ:\n{context}\n\nВОПРОС: {question}"
-    raw = get_llm().complete(SYSTEM_PROMPT, user_msg, temperature=temperature)
+    raw = get_llm().complete(SYSTEM_PROMPT, user_msg, temperature=temperature, history=history[-6:] if history else None)
     answer = (raw or "").strip()
 
     if not answer:

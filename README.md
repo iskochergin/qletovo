@@ -89,9 +89,14 @@ python -m app.server               # http://127.0.0.1:8765
 
 - Веб-чат:  `http://127.0.0.1:8765/`
 - Админка:  `http://127.0.0.1:8765/admin`  (пароль = `ADMIN_PASSWORD`)
-- API:      `POST /query {"question": "..."}` → `{answer, sources:[{title,page,url}], status, text}`
+- API:      `POST /query {"question": "...", "history": [{"role","content"}]}` → `{answer, sources:[{title,page,url}], status, text}`
 - Документы: `GET /manifest`
 - PDF:      `GET /files/<имя>.pdf#page=N`
+
+**Две школы и память диалога.** В корпусе документы школы «Летово» (7–11) и «Летово Джуниор»
+(началка). По умолчанию ассистент отвечает про основную школу; документы Джуниор использует,
+только если вопрос явно про начальную школу/Джуниор (`app/schools.py`). `history` в `/query`
+даёт память диалога — уточнения вроде «а разве не 8 баллов?» работают в контексте.
 
 ## Telegram-бот
 

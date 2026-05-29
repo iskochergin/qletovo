@@ -49,6 +49,7 @@ if MEDIA.exists():
 class QueryIn(BaseModel):
     question: str
     temperature: float | None = 0.0
+    history: list[dict] | None = None  # [{role:"user"|"assistant", content:str}, ...]
 
 
 class QueryOut(BaseModel):
@@ -77,7 +78,7 @@ def require_admin(request: Request) -> None:
 # --- public API --------------------------------------------------------
 @app.post("/query", response_model=QueryOut)
 def query(payload: QueryIn, request: Request):
-    data = answer_question(payload.question, _base_url(request), payload.temperature or 0.0)
+    data = answer_question(payload.question, _base_url(request), payload.temperature or 0.0, history=payload.history)
     return QueryOut(
         answer=data["answer"],
         sources=data["sources"],

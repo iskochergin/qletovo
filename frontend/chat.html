@@ -209,12 +209,17 @@ function renderAnswer(bubble,data){
   bubble.innerHTML=html;scroll();
 }
 
+let history=[];  // [{role:'user'|'assistant', content}] для контекста диалога
 async function ask(q){
   const bubble=addBot();sendBtn.disabled=true;
   try{
-    const r=await fetch('/query',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q})});
+    const r=await fetch('/query',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({question:q, history:history.slice(-8)})});
     if(!r.ok)throw new Error('HTTP '+r.status);
-    renderAnswer(bubble,await r.json());
+    const data=await r.json();
+    renderAnswer(bubble,data);
+    history.push({role:'user',content:q});
+    history.push({role:'assistant',content:data.answer});
   }catch(e){
     bubble.innerHTML='<div class="text">Сервис временно недоступен. Попробуйте, пожалуйста, позже.</div>';
   }finally{sendBtn.disabled=false;input.focus();}

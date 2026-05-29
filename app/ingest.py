@@ -9,6 +9,7 @@ from pathlib import Path
 import fitz  # PyMuPDF
 
 from .config import settings
+from .schools import school_of
 
 _WS = re.compile(r"[ \t ]+")
 _NL = re.compile(r"\n{3,}")
@@ -78,6 +79,7 @@ def build_chunks_for_pdf(path: Path, source_url: str | None = None) -> tuple[lis
         title = humanize_title(path, doc)
         doc_id = doc_id_for(path, sha1)
         local_name = unicodedata.normalize("NFC", path.name)
+        school = school_of(local_name, title)
         chunk_dicts: list[dict] = []
         for page_index in range(doc.page_count):
             page_text = clean_text(doc[page_index].get_text("text"))
@@ -90,6 +92,7 @@ def build_chunks_for_pdf(path: Path, source_url: str | None = None) -> tuple[lis
                         "title": title,
                         "local_name": local_name,
                         "source_url": source_url,
+                        "school": school,
                         "page": page_index + 1,  # человекочитаемая нумерация = #page=N
                         "text": piece,
                     }
@@ -99,6 +102,7 @@ def build_chunks_for_pdf(path: Path, source_url: str | None = None) -> tuple[lis
             "title": title,
             "local_name": local_name,
             "source_url": source_url,
+            "school": school,
             "page_count": doc.page_count,
             "sha1": sha1,
             "n_chunks": len(chunk_dicts),
