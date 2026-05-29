@@ -15,6 +15,8 @@
 """
 from __future__ import annotations
 
+import logging
+import time
 import unicodedata
 from pathlib import Path
 
@@ -28,9 +30,25 @@ from .config import settings
 from .rag import answer_question, list_documents, to_markdown
 from .store import get_store
 
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s | %(message)s")
+log = logging.getLogger("qletovo")
+
 settings.docs_dir.mkdir(parents=True, exist_ok=True)
 
 app = FastAPI(title="Летово — ассистент по документам", docs_url="/api-docs")
+
+
+@app.on_event("startup")
+def _startup_banner() -> None:
+    store = get_store()
+    log.info("=" * 60)
+    log.info("Летово-ассистент запущен")
+    log.info("LLM модель:        %s (reasoning=%s)", settings.openai_model, settings.reasoning_effort)
+    log.info("Эмбеддинги:        %s", settings.openai_embed_model)
+    log.info("MMR:               %s (pool=%s, lambda=%s)", settings.mmr_enabled, settings.mmr_pool, settings.mmr_lambda)
+    log.info("Документов/чанков: %d / %d", len(store.manifest), len(store))
+    log.info("Контекст: TOP_K=%d BEST_K=%d MAX_BLOCKS=%d", settings.top_k, settings.best_k, settings.context_max_blocks)
+    log.info("=" * 60)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
@@ -89,7 +107,12 @@ def require_admin(request: Request) -> None:
 # --- public API --------------------------------------------------------
 @app.post("/query", response_model=QueryOut)
 def query(payload: QueryIn, request: Request):
-    data = answer_question(payload.question, _base_url(request), payload.temperature or 0.0, history=payload.history)
+    t0 = time.time()
+    q = (payload.question or "").strip()
+    log.info("ВОПРОС: %s", q[:200])
+    data = answer_question(q, _base_url(request), payload.temperature or 0.0, history=payload.history)
+    srcs = ", ".join(f"{s.get('title','?')[:24]} стр.{s.get('page')}" for s in (data.get("sources") or [])) or "—"
+    log.info("ОТВЕТ [%s, %.1fс] источники: %s", data.get("status"), time.time() - t0, srcs)
     return QueryOut(
         answer=data["answer"],
         sources=data["sources"],
