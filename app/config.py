@@ -77,6 +77,10 @@ class Settings:
     mmr_enabled: bool = field(default_factory=lambda: _get("MMR_ENABLED", "1") not in ("0", "false", "False", ""))
     mmr_pool: int = field(default_factory=lambda: _get_int("MMR_POOL", 50))
     mmr_lambda: float = field(default_factory=lambda: float(_get("MMR_LAMBDA", "0.6") or "0.6"))
+    # Query-expansion (RAG-fusion): LLM генерирует переформулировки, результаты сливаются по RRF.
+    # Снижает чувствительность поиска к формулировке. Стоит +1 LLM-вызов на запрос.
+    query_expansion: bool = field(default_factory=lambda: _get("QUERY_EXPANSION", "1") not in ("0", "false", "False", ""))
+    query_expansion_n: int = field(default_factory=lambda: _get_int("QUERY_EXPANSION_N", 3))
     # Какие документы НЕ индексировать (regex по имени файла). По умолчанию исключаем
     # учебные программы/ООП/рабочие программы — это объёмные педагогические документы,
     # которые засоряют поиск по нормативным вопросам (приём, правила, оценивание, политики).

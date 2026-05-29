@@ -160,6 +160,22 @@ def _parse_cited(answer: str, context_idx: list[int]) -> tuple[list[int], str]:
     return cited, clean
 
 
+def _fused_retrieve(store, embedder, retrieval_text: str, expansions: list[str], rrf_k: int = 60):
+    """RAG-fusion: объединяет результаты поиска по исходному запросу и переформулировкам через
+    Reciprocal Rank Fusion. Блок, найденный несколькими вариантами запроса, поднимается наверх →
+    поиск перестаёт зависеть от удачности конкретной формулировки. Все запросы эмбеддятся ОДНИМ
+    батч-вызовом (экономия латентности). Возвращает (индексы, RRF-оценки) для top_k."""
+    queries = [retrieval_text] + list(expansions)
+    vectors = embedder.embed_docs(queries)  # один батч-запрос на все варианты
+    scores: dict[int, float] = {}
+    for v in vectors:
+        idx, _ = store.search(v, settings.top_k)
+        for rank, i in enumerate(idx):
+            scores[i] = scores.get(i, 0.0) + 1.0 / (rrf_k + rank)
+    fused = sorted(scores.items(), key=lambda kv: -kv[1])[: settings.top_k]
+    return [i for i, _ in fused], [s for _, s in fused]
+
+
 def _is_refusal(answer: str) -> bool:
     a = answer.strip().lower()
     return (
@@ -194,13 +210,19 @@ def answer_question(question: str, base_url: str, temperature: float = 0.0, hist
     retrieval_text = f"{prev_user}\n{question}" if (prev_user and is_followup) else question
 
     store = get_store()
-    qvec = get_embedder().embed_query(retrieval_text)
-    if settings.mmr_enabled:
-        # MMR: разнообразные релевантные блоки из РАЗНЫХ документов (меньше near-дублей),
-        # чтобы факт, размазанный по нескольким документам, целиком попал в контекст.
-        top_idx, sims = store.search_mmr(qvec, settings.top_k, pool=settings.mmr_pool, lam=settings.mmr_lambda)
+    embedder = get_embedder()
+
+    # Query-expansion (RAG-fusion): ищем по исходному вопросу + переформулировкам, сливаем по RRF.
+    # Снижает чувствительность к формулировке (нужный блок не тонет из-за неудачных слов запроса).
+    expansions = get_llm().expand_queries(question, settings.query_expansion_n) if settings.query_expansion else []
+    if expansions:
+        top_idx, sims = _fused_retrieve(store, embedder, retrieval_text, expansions)
     else:
-        top_idx, sims = store.search(qvec, settings.top_k)
+        qvec = embedder.embed_query(retrieval_text)
+        if settings.mmr_enabled:
+            top_idx, sims = store.search_mmr(qvec, settings.top_k, pool=settings.mmr_pool, lam=settings.mmr_lambda)
+        else:
+            top_idx, sims = store.search(qvec, settings.top_k)
 
     if not top_idx:
         return {"answer": NO_DATA_USER, "sources": [], "status": "not_found"}
