@@ -121,6 +121,37 @@ class VectorStore:
                 out_sim.append(s)
             return out_idx, out_sim
 
+    def search_mmr(self, query_vec: np.ndarray, k: int, pool: int = 50, lam: float = 0.6) -> tuple[list[int], list[float]]:
+        """MMR-выдача: релевантность к запросу минус избыточность (похожесть на уже выбранные).
+        Снижает дубли near-одинаковых чанков → в контекст попадают разные релевантные документы,
+        а не 5 копий одного. Возвращает индексы и их косинус к запросу."""
+        with self._lock:
+            if self._normed.size == 0 or len(self.chunks) == 0:
+                return [], []
+            q = np.asarray(query_vec, dtype="float32").ravel()
+            if q.shape[0] != self._normed.shape[1]:
+                return [], []
+            qn = q / (np.linalg.norm(q) or 1.0)
+            sims = self._normed @ qn
+            pool = min(pool, sims.shape[0])
+            cand = np.argpartition(-sims, pool - 1)[:pool]
+            cand = cand[np.argsort(-sims[cand])].tolist()
+            chosen: list[int] = []
+            while cand and len(chosen) < k:
+                if not chosen:
+                    best = cand[0]
+                else:
+                    chosen_mat = self._normed[chosen]  # (m, d)
+                    best, best_score = cand[0], -1e9
+                    for i in cand:
+                        red = float(np.max(chosen_mat @ self._normed[i]))
+                        score = lam * float(sims[i]) - (1.0 - lam) * red
+                        if score > best_score:
+                            best_score, best = score, i
+                chosen.append(best)
+                cand.remove(best)
+            return chosen, [float(sims[i]) for i in chosen]
+
     # --- write (incremental) ------------------------------------------
     def add_document(self, manifest_entry: dict, chunk_dicts: list[dict], vectors: np.ndarray) -> None:
         """Добавляет один документ. Эмбеддинги считаются только для его чанков."""

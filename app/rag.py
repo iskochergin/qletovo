@@ -195,7 +195,12 @@ def answer_question(question: str, base_url: str, temperature: float = 0.0, hist
 
     store = get_store()
     qvec = get_embedder().embed_query(retrieval_text)
-    top_idx, sims = store.search(qvec, settings.top_k)
+    if settings.mmr_enabled:
+        # MMR: разнообразные релевантные блоки из РАЗНЫХ документов (меньше near-дублей),
+        # чтобы факт, размазанный по нескольким документам, целиком попал в контекст.
+        top_idx, sims = store.search_mmr(qvec, settings.top_k, pool=settings.mmr_pool, lam=settings.mmr_lambda)
+    else:
+        top_idx, sims = store.search(qvec, settings.top_k)
 
     if not top_idx:
         return {"answer": NO_DATA_USER, "sources": [], "status": "not_found"}

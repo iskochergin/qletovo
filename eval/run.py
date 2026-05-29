@@ -76,8 +76,12 @@ def grade(item: dict, resp: dict) -> tuple[bool, str]:
         if status != "answerable":
             return False, f"ожидался ответ, получили {status}"
         low = answer.lower()
-        if not any(s.lower() in low for s in item.get("expect_any", [])):
+        any_kw = item.get("expect_any", [])
+        if any_kw and not any(s.lower() in low for s in any_kw):
             return False, "нет ожидаемых ключевых слов"
+        all_kw = item.get("expect_all", [])
+        if all_kw and not all(s.lower() in low for s in all_kw):
+            return False, f"не все обязательные ключи присутствуют: {all_kw}"
         exp_doc = item.get("expect_doc")
         if exp_doc and not any(exp_doc.lower() in (s.get("title") or "").lower() for s in sources):
             return False, f"нет источника с '{exp_doc}'"

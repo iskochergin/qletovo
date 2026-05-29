@@ -73,6 +73,10 @@ class Settings:
     ocr_dpi: int = field(default_factory=lambda: _get_int("OCR_DPI", 200))
     # Жёсткий потолок на число блоков в контексте LLM — чтобы промпт не раздувался и ответ был быстрым.
     context_max_blocks: int = field(default_factory=lambda: _get_int("CONTEXT_MAX_BLOCKS", 12))
+    # MMR-диверсификация выдачи: уменьшает дубли, в контекст попадают разные релевантные документы.
+    mmr_enabled: bool = field(default_factory=lambda: _get("MMR_ENABLED", "1") not in ("0", "false", "False", ""))
+    mmr_pool: int = field(default_factory=lambda: _get_int("MMR_POOL", 50))
+    mmr_lambda: float = field(default_factory=lambda: float(_get("MMR_LAMBDA", "0.6") or "0.6"))
     # Какие документы НЕ индексировать (regex по имени файла). По умолчанию исключаем
     # учебные программы/ООП/рабочие программы — это объёмные педагогические документы,
     # которые засоряют поиск по нормативным вопросам (приём, правила, оценивание, политики).
