@@ -22,6 +22,21 @@ def file_sha1(path: Path) -> str:
     return h.hexdigest()
 
 
+def _ocr_page(page: "fitz.Page") -> str:
+    """Распознаёт текст со страницы-картинки (скан) через Tesseract. Пусто при сбое."""
+    try:
+        import io
+
+        import pytesseract
+        from PIL import Image
+
+        pix = page.get_pixmap(dpi=settings.ocr_dpi)
+        img = Image.open(io.BytesIO(pix.tobytes("png")))
+        return pytesseract.image_to_string(img, lang=settings.ocr_lang)
+    except Exception:
+        return ""
+
+
 def clean_text(text: str) -> str:
     text = unicodedata.normalize("NFC", text)
     text = text.replace("\r", "\n")
@@ -80,7 +95,12 @@ def build_chunks_for_pdf(path: Path, source_url: str | None = None) -> tuple[lis
         local_name = unicodedata.normalize("NFC", path.name)
         chunk_dicts: list[dict] = []
         for page_index in range(doc.page_count):
-            page_text = clean_text(doc[page_index].get_text("text"))
+            page = doc[page_index]
+            page_text = clean_text(page.get_text("text"))
+            if settings.ocr_enabled and len(page_text) < settings.ocr_min_page_chars:
+                ocr_text = clean_text(_ocr_page(page))
+                if len(ocr_text) > len(page_text):
+                    page_text = ocr_text
             if not page_text:
                 continue
             for piece in split_text(page_text, settings.chunk_chars, settings.chunk_overlap):

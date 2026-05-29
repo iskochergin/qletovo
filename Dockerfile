@@ -8,6 +8,11 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
+# tesseract + рус/англ языки — для OCR сканов при индексации (scripts.reindex в контейнере)
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-rus tesseract-ocr-eng \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 

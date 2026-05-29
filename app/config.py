@@ -68,6 +68,11 @@ class Settings:
     max_snippet: int = field(default_factory=lambda: _get_int("MAX_SNIPPET", 1200))
     chunk_chars: int = field(default_factory=lambda: _get_int("CHUNK_CHARS", 900))
     chunk_overlap: int = field(default_factory=lambda: _get_int("CHUNK_OVERLAP", 200))
+    # OCR для сканов: если на странице меньше ocr_min_page_chars текста — распознаём картинку.
+    ocr_enabled: bool = field(default_factory=lambda: _get("OCR_ENABLED", "1") not in ("0", "false", "False", ""))
+    ocr_min_page_chars: int = field(default_factory=lambda: _get_int("OCR_MIN_PAGE_CHARS", 80))
+    ocr_lang: str = field(default_factory=lambda: _get("OCR_LANG", "rus+eng"))
+    ocr_dpi: int = field(default_factory=lambda: _get_int("OCR_DPI", 200))
     # Жёсткий потолок на число блоков в контексте LLM — чтобы промпт не раздувался и ответ был быстрым.
     context_max_blocks: int = field(default_factory=lambda: _get_int("CONTEXT_MAX_BLOCKS", 12))
     # Какие документы НЕ индексировать (regex по имени файла). По умолчанию исключаем

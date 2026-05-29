@@ -8,6 +8,10 @@ python-multipart>=0.0.9
 # PDF -> text (постраничный)
 pymupdf>=1.24
 
+# OCR сканов (нужен системный tesseract + языковые данные rus/eng — см. README/Dockerfile)
+pytesseract>=0.3.10
+pillow>=10.0
+
 # Vector store / math
 numpy>=1.26
 

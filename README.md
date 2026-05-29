@@ -81,6 +81,15 @@ python -m scripts.reindex          # пересобрать индекс из в
 Чтобы включить их в индекс, очистите `INDEX_EXCLUDE`. Прунинг уже собранного индекса без
 пересчёта эмбеддингов: `python -c "from app.indexer import prune_index; print(prune_index())"`.
 
+**OCR сканов.** Часть документов школы — сканы без текстового слоя (≈70 из корпуса). Индексатор
+их распознаёт автоматически: если на странице мало текста, она прогоняется через OCR (Tesseract,
+rus+eng). Нужен системный tesseract с русским языком:
+- macOS: `brew install tesseract` + положить `rus.traineddata` в `$(brew --prefix)/share/tessdata/`
+  (из [tessdata_fast](https://github.com/tesseract-ocr/tessdata_fast));
+- Debian/Docker: `apt-get install tesseract-ocr tesseract-ocr-rus` (в Dockerfile уже включено).
+
+Без tesseract OCR молча пропускается (сканы не попадут в индекс). Настройки — `OCR_*` в `.env`.
+
 ## Запуск бэкенда
 
 ```bash
