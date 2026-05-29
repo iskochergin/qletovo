@@ -9,7 +9,10 @@ from pathlib import Path
 
 from .config import settings
 from .llm import get_llm
-from .prompts import NO_DATA, NO_DATA_USER, OFF_TOPIC, SYSTEM_PROMPT
+from .prompts import JUNIOR_REDIRECT, NO_DATA, NO_DATA_USER, OFF_TOPIC, SYSTEM_PROMPT
+
+# Вопрос явно про «Летово Джуниор» / начальную школу → перенаправляем на основную школу.
+_JUNIOR_RE = re.compile(r"дж[ую]ниор|dzhunior|junior|начальн\w*\s+школ|младш\w*\s+школ|\bНОО\b|началк", re.I)
 from .store import get_store
 
 
@@ -161,6 +164,10 @@ def answer_question(question: str, base_url: str, temperature: float = 0.0, hist
     question = (question or "").strip()
     if not question:
         return {"answer": OFF_TOPIC, "sources": [], "status": "off_topic"}
+
+    # Вопросы про «Летово Джуниор»/начальную школу — отвечаем, что зона только основная школа.
+    if _JUNIOR_RE.search(question):
+        return {"answer": JUNIOR_REDIRECT, "sources": [], "status": "off_topic"}
 
     from .embeddings import get_embedder
 
