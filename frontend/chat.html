@@ -87,10 +87,11 @@
   .chip{
     border:1px solid var(--navy);color:var(--navy);background:#fff;border-radius:14px;
     padding:10px 15px;font:inherit;font-weight:700;font-size:14px;cursor:pointer;
-    text-align:left;max-width:300px;line-height:1.35;text-wrap:balance;
+    text-align:left;line-height:1.35;white-space:nowrap;
     transition:background .12s ease,color .12s ease,transform .1s ease;
   }
   .chip:hover{background:var(--navy);color:#fff;transform:translateY(-1px);}
+  .chip .short{display:none;}  /* по умолчанию (десктоп) показываем полную формулировку */
   /* typing */
   .typing{display:flex;gap:5px;padding:4px 2px;}
   .typing span{width:8px;height:8px;border-radius:50%;background:var(--navy-l);opacity:.5;animation:blink 1.3s infinite both;}
@@ -138,7 +139,8 @@
     .bot .content{max-width:100%;}
     .bot .bubble{padding:12px 13px;border-radius:4px 14px 14px 14px;}
     .user .bubble{padding:10px 13px;max-width:88%;}
-    .chip{font-size:13px;padding:7px 12px;}
+    .chip{font-size:13px;padding:7px 12px;max-width:100%;}
+    .chip .full{display:none;} .chip .short{display:inline;}
     .src{padding:9px 10px;gap:9px;}
     .src .ttl{font-size:13px;white-space:normal;}
     footer{padding:22px 10px calc(12px + env(safe-area-inset-bottom));}
@@ -169,10 +171,10 @@
             <div class="greeting">
               <p>Здравствуйте! Спросите что угодно о школе «Летово» — например:</p>
               <div class="chips" id="chips">
-                <button class="chip">В какие классы поступить?</button>
-                <button class="chip">Документы для поступления</button>
-                <button class="chip">Права обучающихся</button>
-                <button class="chip">Что будет за списывание?</button>
+                <button class="chip" data-q="В какие классы можно поступить?"><span class="full">В какие классы можно поступить?</span><span class="short">В какие классы поступить?</span></button>
+                <button class="chip" data-q="Какие документы нужны для поступления?"><span class="full">Какие документы нужны для поступления?</span><span class="short">Документы для поступления</span></button>
+                <button class="chip" data-q="Какие права есть у обучающихся?"><span class="full">Какие права есть у обучающихся?</span><span class="short">Права обучающихся</span></button>
+                <button class="chip" data-q="Что грозит за нарушение академической честности?"><span class="full">Что грозит за нарушение академической честности?</span><span class="short">Что будет за списывание?</span></button>
               </div>
             </div>
           </div>
@@ -251,7 +253,7 @@ function submitQ(q){q=q.trim();if(!q||busy)return;addUser(q);input.value='';inpu
 
 form.addEventListener('submit',e=>{e.preventDefault();submitQ(input.value);});
 document.getElementById('chips').addEventListener('click',e=>{
-  const c=e.target.closest('.chip');if(c)submitQ(c.textContent);
+  const c=e.target.closest('.chip');if(c)submitQ(c.dataset.q||c.textContent.trim());
 });
 input.addEventListener('input',()=>{input.style.height='auto';input.style.height=Math.min(input.scrollHeight,150)+'px';});
 input.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();form.requestSubmit();}});
