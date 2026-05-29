@@ -210,8 +210,9 @@ function renderAnswer(bubble,data){
 }
 
 let history=[];  // [{role:'user'|'assistant', content}] для контекста диалога
+let busy=false;  // пока идёт ответ — новый вопрос отправить нельзя
 async function ask(q){
-  const bubble=addBot();sendBtn.disabled=true;
+  busy=true;const bubble=addBot();sendBtn.disabled=true;
   try{
     const r=await fetch('/query',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({question:q, history:history.slice(-6)})});
@@ -222,10 +223,10 @@ async function ask(q){
     history.push({role:'assistant',content:data.answer});
   }catch(e){
     bubble.innerHTML='<div class="text">Сервис временно недоступен. Попробуйте, пожалуйста, позже.</div>';
-  }finally{sendBtn.disabled=false;input.focus();}
+  }finally{busy=false;sendBtn.disabled=false;input.focus();}
 }
 
-function submitQ(q){q=q.trim();if(!q)return;addUser(q);input.value='';input.style.height='auto';ask(q);}
+function submitQ(q){q=q.trim();if(!q||busy)return;addUser(q);input.value='';input.style.height='auto';ask(q);}
 
 form.addEventListener('submit',e=>{e.preventDefault();submitQ(input.value);});
 document.getElementById('chips').addEventListener('click',e=>{
