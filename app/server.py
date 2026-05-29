@@ -177,11 +177,14 @@ def admin_delete(payload: DeleteIn, _: None = Depends(require_admin)):
 
 
 # --- frontend ----------------------------------------------------------
+_NO_CACHE = {"Cache-Control": "no-cache, must-revalidate"}
+
+
 @app.get("/", response_class=HTMLResponse)
 def index():
     page = FRONTEND / "chat.html"
     if page.exists():
-        return FileResponse(page)
+        return FileResponse(page, headers=_NO_CACHE)
     return HTMLResponse("<h1>Летово — ассистент</h1><p>frontend/chat.html не найден.</p>")
 
 
@@ -189,7 +192,7 @@ def index():
 def admin_page():
     page = FRONTEND / "admin.html"
     if page.exists():
-        return FileResponse(page)
+        return FileResponse(page, headers=_NO_CACHE)
     return HTMLResponse("<h1>Админка</h1><p>frontend/admin.html не найден.</p>")
 
 
