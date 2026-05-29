@@ -39,6 +39,13 @@
   header .logo img{width:40px;height:40px;object-fit:contain;}
   header .htext h1{font-size:16px;font-weight:800;margin:0;color:var(--navy);letter-spacing:.2px;line-height:1.2;}
   header .htext p{font-size:12px;color:var(--muted);margin:1px 0 0;font-weight:600;line-height:1.25;}
+  header .clear{
+    margin-left:auto; flex:none; display:inline-flex; align-items:center; gap:6px; cursor:pointer;
+    border:1px solid var(--line); background:#fff; color:var(--muted); font:inherit; font-weight:700; font-size:13px;
+    border-radius:10px; padding:8px 12px; transition:color .15s,border-color .15s,background .15s;
+  }
+  header .clear:hover{color:var(--navy); border-color:var(--navy-l); background:#f4f7fd;}
+  header .clear svg{width:16px;height:16px;}
   /* feed */
   main{flex:1; overflow-y:auto; padding:26px 18px 110px;}
   /* кастомный скроллбар в фирменных цветах */
@@ -141,6 +148,8 @@
     header .logo,header .logo img{width:36px;height:36px;}
     .htext h1{font-size:15px;}
     .htext p{display:none;}                 /* на телефоне держим шапку максимально узкой */
+    header .clear span{display:none;}        /* оставляем только иконку корзины */
+    header .clear{padding:8px;}
     main{padding:16px 11px 100px;}
     .feed{gap:14px;}
     .row{gap:9px;}
@@ -169,11 +178,15 @@
       <h1>Хочешь в Летово?</h1>
       <p>Отвечаю по официальным документам школы — со ссылкой на страницу первоисточника</p>
     </div>
+    <button id="clearBtn" class="clear" title="Очистить чат" aria-label="Очистить чат">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m2 0v12a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span>Очистить</span>
+    </button>
   </header>
 
   <main id="main">
     <div class="feed" id="feed">
-      <div class="row bot">
+      <div class="row bot" id="greeting">
         <span class="avatar"><img src="/media/qletovo-logo.png" alt="" /></span>
         <div class="content">
           <div class="role">Ассистент</div>
@@ -213,58 +226,88 @@ function esc(s){const d=document.createElement('div');d.textContent=s==null?'':S
 function fmt(s){return esc(s).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/(^|[^*])\*(?!\s)([^*\n]+?)\*(?!\*)/g,'$1<em>$2</em>');}
 function scroll(){main.scrollTop=main.scrollHeight;}
 
-function addUser(text){
+const STORE_KEY='letovo_chat_v1';
+let messages=[];  // [{role:'user',text} | {role:'assistant',answer,sources}] — переживает переход в просмотрщик и обратно
+let busy=false;
+
+function save(){ try{ sessionStorage.setItem(STORE_KEY, JSON.stringify(messages)); }catch(e){} }
+function load(){ try{ return JSON.parse(sessionStorage.getItem(STORE_KEY)||'[]'); }catch(e){ return []; } }
+
+function sourcesHtml(sources){
+  if(!sources||!sources.length) return '';
+  let html='<div class="sources"><div class="label">Источники</div>';
+  for(const s of sources){
+    const pg=s.page?'<div class="pg">Страница '+esc(s.page)+'</div>':'';
+    html+='<a class="src" href="'+esc(s.url)+'" target="_blank" rel="noopener">'+
+      '<span class="ic">'+DOC_ICON+'</span>'+
+      '<span class="meta"><div class="ttl">'+esc(s.title)+'</div>'+pg+'</span>'+
+      '<span class="arrow">'+ARROW+'</span></a>';
+  }
+  return html+'</div>';
+}
+function userRow(text){
   const el=document.createElement('div');el.className='row user';
   el.innerHTML='<div class="bubble">'+esc(text)+'</div>';
-  feed.appendChild(el);scroll();
+  return el;
 }
-function addBot(){
+function botRow(inner){
   const el=document.createElement('div');el.className='row bot';
   el.innerHTML='<span class="avatar"><img src="'+LOGO+'" alt=""></span>'+
-    '<div class="content"><div class="role">Ассистент</div>'+
-    '<div class="bubble"><div class="typing"><span></span><span></span><span></span></div></div></div>';
-  feed.appendChild(el);scroll();
-  return el.querySelector('.bubble');
+    '<div class="content"><div class="role">Ассистент</div><div class="bubble">'+inner+'</div></div>';
+  return el;
 }
-function renderAnswer(bubble,data){
-  let html='<div class="text">'+fmt(data.answer)+'</div>';
-  if(data.sources&&data.sources.length){
-    html+='<div class="sources"><div class="label">Источники</div>';
-    for(const s of data.sources){
-      const pg=s.page?'<div class="pg">Страница '+esc(s.page)+'</div>':'';
-      html+='<a class="src" href="'+esc(s.url)+'" target="_blank" rel="noopener">'+
-        '<span class="ic">'+DOC_ICON+'</span>'+
-        '<span class="meta"><div class="ttl">'+esc(s.title)+'</div>'+pg+'</span>'+
-        '<span class="arrow">'+ARROW+'</span></a>';
-    }
-    html+='</div>';
+function answerInner(data){ return '<div class="text">'+fmt(data.answer)+'</div>'+sourcesHtml(data.sources); }
+
+function renderAll(){
+  // убрать всё, кроме приветствия
+  [...feed.querySelectorAll('.row:not(#greeting)')].forEach(n=>n.remove());
+  const greeting=document.getElementById('greeting');
+  if(greeting) greeting.style.display = messages.length ? 'none' : '';
+  for(const m of messages){
+    feed.appendChild(m.role==='user' ? userRow(m.text) : botRow(answerInner(m)));
   }
-  bubble.innerHTML=html;scroll();
+  scroll();
 }
 
-let history=[];  // [{role:'user'|'assistant', content}] для контекста диалога
-let busy=false;  // пока идёт ответ — новый вопрос отправить нельзя
+function historyForApi(){
+  return messages.map(m => m.role==='user' ? {role:'user',content:m.text} : {role:'assistant',content:m.answer}).slice(-6);
+}
+
 async function ask(q){
-  busy=true;const bubble=addBot();sendBtn.disabled=true;
+  busy=true; sendBtn.disabled=true;
+  const hist=historyForApi();
+  messages.push({role:'user',text:q}); save();
+  document.getElementById('greeting').style.display='none';
+  feed.appendChild(userRow(q)); scroll();
+  const bubbleRow=botRow('<div class="typing"><span></span><span></span><span></span></div>');
+  feed.appendChild(bubbleRow); scroll();
+  const bubble=bubbleRow.querySelector('.bubble');
   try{
     const r=await fetch('/query',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({question:q, history:history.slice(-6)})});
+      body:JSON.stringify({question:q, history:hist})});
     if(!r.ok)throw new Error('HTTP '+r.status);
     const data=await r.json();
-    renderAnswer(bubble,data);
-    history.push({role:'user',content:q});
-    history.push({role:'assistant',content:data.answer});
+    bubble.innerHTML=answerInner(data); scroll();
+    messages.push({role:'assistant',answer:data.answer,sources:data.sources||[]}); save();
   }catch(e){
     bubble.innerHTML='<div class="text">Сервис временно недоступен. Попробуйте, пожалуйста, позже.</div>';
   }finally{busy=false;sendBtn.disabled=false;input.focus();}
 }
 
-function submitQ(q){q=q.trim();if(!q||busy)return;addUser(q);input.value='';input.style.height='auto';ask(q);}
+function submitQ(q){q=q.trim();if(!q||busy)return;input.value='';input.style.height='auto';ask(q);}
+
+function clearChat(){
+  if(busy)return;
+  messages=[]; save(); renderAll(); input.focus();
+}
 
 form.addEventListener('submit',e=>{e.preventDefault();submitQ(input.value);});
 document.getElementById('chips').addEventListener('click',e=>{
   const c=e.target.closest('.chip');if(c)submitQ(c.dataset.q||c.textContent.trim());
 });
+document.getElementById('clearBtn').addEventListener('click',clearChat);
+// восстановить историю (например, после возврата из просмотрщика PDF)
+messages=load(); if(messages.length) renderAll();
 input.addEventListener('input',()=>{input.style.height='auto';input.style.height=Math.min(input.scrollHeight,150)+'px';});
 input.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();form.requestSubmit();}});
 input.focus();

@@ -63,7 +63,9 @@
   #fileList{margin-top:10px; display:flex; flex-direction:column; gap:8px;}
   #fileList:empty{display:none;}
   .frow{display:flex; align-items:center; gap:10px; background:#fbfcfe; border:1px solid var(--line); border-radius:10px; padding:8px 10px;}
-  .frow .fn{font-size:11px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; width:34%; flex:none;}
+  .frow .frm{flex:none; width:26px; height:26px; border-radius:7px; border:1px solid var(--line); background:#fff; color:var(--danger); font-weight:800; cursor:pointer; line-height:1; padding:0;}
+  .frow .frm:hover{background:#fdecea; border-color:#e7c3bd;}
+  .frow .fn{font-size:11px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; width:30%; flex:none;}
   .frow input{flex:1; min-width:0; border:1px solid var(--line); border-radius:8px; padding:8px 10px; font:inherit; font-size:14px; outline:none; background:#fff;}
   .frow input:focus{border-color:var(--navy); box-shadow:0 0 0 3px rgba(20,50,130,.08);}
   /* doc list */
@@ -71,7 +73,7 @@
   .doc:hover{border-color:var(--navy-l); box-shadow:var(--shadow-sm);}
   .doc .ic{width:34px;height:34px;flex:none;border-radius:9px;background:var(--gold-soft);display:flex;align-items:center;justify-content:center;}
   .doc .ic svg{width:18px;height:18px;}
-  .doc .meta{flex:1; min-width:0;}
+  .doc .meta{flex:1; min-width:0; overflow:hidden;}
   .doc .ttl{font-weight:700;font-size:14.5px;color:var(--navy);text-decoration:none;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .doc .ttl:hover{text-decoration:underline;}
   .doc .sub{display:block;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
@@ -122,6 +124,7 @@
         <div id="fileList"></div>
         <div class="row">
           <button id="uploadBtn" class="primary">Загрузить и проиндексировать</button>
+          <button id="cancelBtn" class="secondary" style="display:none">Отмена</button>
           <button id="reindexBtn" class="secondary">Полная переиндексация</button>
         </div>
         <div class="status" id="opStatus"></div>
@@ -179,16 +182,14 @@ async function loadDocs(){
 
 let uploadCtrl = null;
 async function upload(){
-  if (uploadCtrl){ uploadCtrl.abort(); return; }   // повторный клик во время загрузки = отмена
-  const files = $('files').files;
-  if (!files.length){ $('opStatus').textContent = 'Сначала выберите PDF-файлы.'; $('opStatus').classList.add('err'); return; }
+  if (uploadCtrl) return;   // загрузка уже идёт
+  if (!selected.length){ $('opStatus').textContent = 'Сначала выберите PDF-файлы.'; $('opStatus').classList.add('err'); return; }
+  const titleInputs = [...$('fileList').querySelectorAll('.frow input')];
   const fd = new FormData();
-  for (const f of files) fd.append('files', f);
-  // названия — параллельно файлам, в том же порядке
-  $('fileList').querySelectorAll('.frow input').forEach(inp => fd.append('titles', inp.value || ''));
+  selected.forEach((f, i) => { fd.append('files', f); fd.append('titles', (titleInputs[i] && titleInputs[i].value) || ''); });
   $('opStatus').classList.remove('err'); $('opStatus').textContent = 'Загрузка и индексация…';
   uploadCtrl = new AbortController();
-  $('uploadBtn').textContent = 'Отменить загрузку'; $('uploadBtn').classList.add('cancel');
+  $('uploadBtn').disabled = true; $('cancelBtn').style.display = '';
   try {
     const r = await fetch('/admin/upload', { method: 'POST', headers: headers(), body: fd, signal: uploadCtrl.signal });
     const data = await r.json();
@@ -197,14 +198,15 @@ async function upload(){
     let msg = 'Готово: проиндексировано ' + ok + ' файл(ов).';
     if (fail.length) msg += ' Ошибки: ' + fail.map(f=>esc(f.filename)+' — '+esc(f.error)).join('; ');
     $('opStatus').innerHTML = msg;
-    $('files').value = ''; $('fileLabel').textContent = 'Выберите PDF-файлы'; $('fileList').innerHTML = '';
+    selected = []; renderFiles();
     loadDocs();
   } catch (e) {
     if (e.name === 'AbortError'){ $('opStatus').textContent = 'Загрузка отменена.'; loadDocs(); }
     else { $('opStatus').textContent = 'Ошибка загрузки.'; $('opStatus').classList.add('err'); }
   } finally {
     uploadCtrl = null;
-    $('uploadBtn').textContent = 'Загрузить и проиндексировать'; $('uploadBtn').classList.remove('cancel');
+    $('uploadBtn').disabled = false;
+    $('cancelBtn').style.display = selected.length ? '' : 'none';
   }
 }
 
@@ -243,17 +245,33 @@ $('loginBtn').addEventListener('click', login);
 $('pw').addEventListener('keydown', e => { if (e.key==='Enter') login(); });
 $('uploadBtn').addEventListener('click', upload);
 $('reindexBtn').addEventListener('click', reindex);
+$('cancelBtn').addEventListener('click', () => {
+  if (uploadCtrl){ uploadCtrl.abort(); return; }   // идёт загрузка → прервать
+  selected = []; renderFiles();                     // иначе → очистить выбор
+  $('opStatus').textContent = ''; $('opStatus').classList.remove('err');
+});
+
 function humanize(fn){ return fn.replace(/\.pdf$/i,'').replace(/[_-]+/g,' ').replace(/\s+/g,' ').trim(); }
-$('files').addEventListener('change', () => {
-  const files = [...$('files').files];
-  $('fileLabel').textContent = files.length ? (files.length + ' файл(ов) выбрано') : 'Выберите PDF-файлы';
+let selected = [];   // выбранные File-объекты (свой массив — чтобы можно было убирать по одному)
+
+function renderFiles(){
+  const titles = [...$('fileList').querySelectorAll('.frow input')].map(i => i.value);  // сохранить введённое
+  $('fileLabel').textContent = selected.length ? (selected.length + ' файл(ов) выбрано') : 'Выберите PDF-файлы';
+  $('cancelBtn').style.display = selected.length ? '' : 'none';
   const list = $('fileList'); list.innerHTML = '';
-  files.forEach(f => {
+  selected.forEach((f, idx) => {
     const row = document.createElement('div'); row.className = 'frow';
-    row.innerHTML = '<span class="fn">'+esc(f.name)+'</span><input type="text" placeholder="Название документа" />';
-    row.querySelector('input').value = humanize(f.name);
+    row.innerHTML = '<button class="frm" title="Убрать">✕</button><span class="fn">'+esc(f.name)+'</span><input type="text" placeholder="Название документа" />';
+    row.querySelector('input').value = titles[idx] !== undefined ? titles[idx] : humanize(f.name);
+    row.querySelector('.frm').addEventListener('click', () => { selected.splice(idx,1); renderFiles(); });
     list.appendChild(row);
   });
+}
+
+$('files').addEventListener('change', () => {
+  selected = selected.concat([...$('files').files]);   // докидываем к уже выбранным
+  $('files').value = '';                                // позволяет выбрать те же файлы снова
+  renderFiles();
 });
 </script>
 </body>

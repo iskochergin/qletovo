@@ -44,6 +44,8 @@ class Settings:
     # Пусто => SDK использует https://api.openai.com/v1. Задайте для совместимого прокси.
     openai_base_url: str = field(default_factory=lambda: _get("OPENAI_BASE_URL"))
     openai_model: str = field(default_factory=lambda: _get("OPENAI_MODEL", "gpt-4o-mini"))
+    # reasoning_effort для gpt-5* (minimal|low|medium|high). low — баланс скорость/качество.
+    reasoning_effort: str = field(default_factory=lambda: _get("REASONING_EFFORT", "low"))
     openai_embed_model: str = field(
         default_factory=lambda: _get("OPENAI_EMBED_MODEL", "text-embedding-3-small")
     )

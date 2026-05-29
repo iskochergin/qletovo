@@ -19,11 +19,13 @@ class OpenAILLM:
             if role in ("user", "assistant") and content:
                 messages.append({"role": role, "content": content})
         messages.append({"role": "user", "content": user})
-        data = post(
-            "/chat/completions",
-            {"model": self._model_name, "temperature": temperature, "messages": messages},
-            timeout=90,
-        )
+        payload = {"model": self._model_name, "messages": messages}
+        if self._model_name.lower().startswith("gpt-5"):
+            # gpt-5*: temperature только дефолтная; reasoning_effort=low — быстрее в разы.
+            payload["reasoning_effort"] = settings.reasoning_effort
+        else:
+            payload["temperature"] = temperature
+        data = post("/chat/completions", payload, timeout=90)
         return (data["choices"][0]["message"]["content"] or "").strip()
 
 

@@ -26,7 +26,8 @@ sys.path.insert(0, str(ROOT))
 
 from app.prompts import NO_DATA, OFF_TOPIC  # noqa: E402
 
-LINK_RE = re.compile(r"^https?://.+/files/.+#page=\d+$")
+# Ссылка-источник: /viewer/<file>.pdf?page=N (текущий формат) либо старый /files/...#page=N
+LINK_RE = re.compile(r"^https?://.+/(?:viewer|files)/.+(?:[?&]page=\d+|#page=\d+)")
 
 ACC_THRESHOLD = 0.85
 LINK_THRESHOLD = 0.95
