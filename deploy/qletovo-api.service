@@ -9,7 +9,7 @@ User=qletovo
 WorkingDirectory=/opt/qletovo
 EnvironmentFile=/opt/qletovo/.env
 # Слушаем все интерфейсы (за reverse-proxy/nginx с TLS).
-ExecStart=/opt/qletovo/.venv/bin/uvicorn app.server:app --host 0.0.0.0 --port 8765
+ExecStart=/opt/qletovo/.venv/bin/uvicorn app.server:app --host 0.0.0.0 --port 8765 --proxy-headers --forwarded-allow-ips="*"
 Restart=on-failure
 RestartSec=3
 

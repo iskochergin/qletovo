@@ -60,8 +60,20 @@ class QueryOut(BaseModel):
 
 
 def _base_url(request: Request) -> str:
+    """Базовый URL для ссылок на PDF.
+
+    Без хардкода домена: по умолчанию берём домен из самого запроса (какой адрес открыли —
+    такие и ссылки), учитывая заголовки reverse-proxy (X-Forwarded-Proto/Host) — за nginx это
+    даст публичный https-домен. PUBLIC_BASE_URL в .env — необязательный явный override
+    (нужен, например, Telegram-боту, который ходит к бэкенду по внутреннему адресу).
+    """
     if settings.public_base_url:
         return settings.public_base_url.rstrip("/")
+    fwd_host = request.headers.get("x-forwarded-host") or request.headers.get("host")
+    if fwd_host:
+        scheme = (request.headers.get("x-forwarded-proto") or request.url.scheme).split(",")[0].strip()
+        host = fwd_host.split(",")[0].strip()
+        return f"{scheme}://{host}"
     return str(request.base_url).rstrip("/")
 
 
@@ -207,7 +219,14 @@ def favicon():
 def main() -> None:
     import uvicorn
 
-    uvicorn.run(app, host=settings.api_host, port=settings.api_port)
+    # proxy_headers/forwarded_allow_ips — чтобы за reverse-proxy ссылки получали публичный домен.
+    uvicorn.run(
+        app,
+        host=settings.api_host,
+        port=settings.api_port,
+        proxy_headers=True,
+        forwarded_allow_ips="*",
+    )
 
 
 if __name__ == "__main__":

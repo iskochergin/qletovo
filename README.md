@@ -172,7 +172,7 @@ python -m eval.run --api http://127.0.0.1:8765   # через HTTP
 ### Docker Compose (рекомендуется)
 
 ```bash
-cp .env.example .env          # заполнить ключи; PUBLIC_BASE_URL=https://qletovo.ru
+cp .env.example .env          # заполнить ключи (OPENAI_API_KEY и т.д.)
 # положить PDF в ./data/docs (краулером или scripts/fetch_sources.py)
 docker compose build
 docker compose run --rm api python -m scripts.reindex   # разовая сборка индекса
@@ -182,6 +182,24 @@ docker compose up -d           # поднимет api (8765) и bot
 `./data` смонтирован томом (PDF + индекс переживают пересборку образа). Бот ходит к API по
 имени сервиса (`http://api:8765`). Перед публичным доступом поставьте reverse-proxy (nginx)
 с TLS на порт 8765.
+
+### Домен и ссылки на PDF
+
+Ссылки на документы (`#page=N`) **не привязаны к домену**: по умолчанию (`PUBLIC_BASE_URL`
+пуст) берётся домен из запроса. На любом домене всё заработает само — нужно лишь, чтобы nginx
+передавал заголовки:
+
+```nginx
+location / {
+    proxy_pass http://127.0.0.1:8765;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+```
+
+Задавайте `PUBLIC_BASE_URL=https://ваш-домен` в `.env` **только** если используете Telegram-бот
+(он обращается к бэкенду по внутреннему адресу, поэтому ему нужен явный публичный домен для
+кнопок-ссылок) или хотите зафиксировать канонический домен.
 
 ### systemd (без Docker)
 

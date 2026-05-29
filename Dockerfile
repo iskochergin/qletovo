@@ -25,4 +25,4 @@ EXPOSE 8765
 
 # По умолчанию — API. Бот запускается отдельным сервисом (см. compose) командой:
 #   python -m telegram.bot
-CMD ["uvicorn", "app.server:app", "--host", "0.0.0.0", "--port", "8765"]
+CMD ["uvicorn", "app.server:app", "--host", "0.0.0.0", "--port", "8765", "--proxy-headers", "--forwarded-allow-ips", "*"]
