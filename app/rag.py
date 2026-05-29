@@ -202,8 +202,12 @@ def answer_question(question: str, base_url: str, temperature: float = 0.0, hist
         return {"answer": NO_DATA, "sources": [], "status": "not_found"}
     if cited_idx:
         sources = _build_sources(cited_idx, base_url, limit=3)
-    else:
+    elif best_sims and best_sims[0] >= 0.35:
+        # модель не указала источники, но ответ явно опирается на релевантные документы
         sources = _build_sources(best_idx, base_url, sims=best_sims, limit=3)
+    else:
+        # общий/разговорный ответ без опоры на конкретный документ — без источников
+        sources = []
     return {"answer": answer, "sources": sources, "status": "answerable"}
 
 
