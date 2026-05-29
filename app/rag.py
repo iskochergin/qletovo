@@ -9,7 +9,7 @@ from pathlib import Path
 
 from .config import settings
 from .llm import get_llm
-from .prompts import NO_DATA, OFF_TOPIC, SYSTEM_PROMPT
+from .prompts import NO_DATA, NO_DATA_USER, OFF_TOPIC, SYSTEM_PROMPT
 from .store import get_store
 
 
@@ -173,7 +173,7 @@ def answer_question(question: str, base_url: str, temperature: float = 0.0, hist
     top_idx, sims = store.search(qvec, settings.top_k, school_filter=school)
 
     if not top_idx:
-        return {"answer": NO_DATA, "sources": [], "status": "not_found"}
+        return {"answer": NO_DATA_USER, "sources": [], "status": "not_found"}
 
     # Релевантностный гейт: явно нерелевантные вопросы (вне зоны школы) отсекаем до LLM.
     if sims and sims[0] < settings.offtopic_gate:
@@ -189,17 +189,17 @@ def answer_question(question: str, base_url: str, temperature: float = 0.0, hist
     answer = (raw or "").strip()
 
     if not answer:
-        return {"answer": NO_DATA, "sources": [], "status": "not_found"}
+        return {"answer": NO_DATA_USER, "sources": [], "status": "not_found"}
 
     if _is_refusal(answer):
         if "отвечаю только на вопросы" in answer.lower():
             return {"answer": OFF_TOPIC, "sources": [], "status": "off_topic"}
-        return {"answer": NO_DATA, "sources": [], "status": "not_found"}
+        return {"answer": NO_DATA_USER, "sources": [], "status": "not_found"}
 
     # Источники — те блоки [Источник N], которые модель указала, что использовала.
     cited_idx, answer = _parse_cited(answer, context_idx)
     if not answer:  # на всякий случай: модель вернула только строку источников
-        return {"answer": NO_DATA, "sources": [], "status": "not_found"}
+        return {"answer": NO_DATA_USER, "sources": [], "status": "not_found"}
     if cited_idx:
         sources = _build_sources(cited_idx, base_url, limit=3)
     elif best_sims and best_sims[0] >= 0.35:

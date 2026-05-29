@@ -38,8 +38,8 @@ def valid_link(url: str) -> bool:
 
 
 def is_refusal_text(text: str) -> bool:
-    t = (text or "").strip()
-    return t == NO_DATA or t == OFF_TOPIC
+    t = (text or "").strip().lower()
+    return "нет данных по этому вопросу" in t or "отвечаю только на вопросы" in t
 
 
 def make_asker(api: str | None):
@@ -85,7 +85,7 @@ def grade(item: dict, resp: dict) -> tuple[bool, str]:
         return True, "ok"
 
     if typ == "refuse_nodata":
-        if status == "not_found" and answer == NO_DATA:
+        if status == "not_found" and "нет данных по этому вопросу" in answer.lower():
             return True, "ok (отказ)"
         return False, f"должен был отказать (NO_DATA), получили {status}"
 
