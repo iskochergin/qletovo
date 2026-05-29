@@ -1,100 +1,113 @@
-# Развёртывание на сервере
+# Развёртывание на сервере (systemd + nginx + HTTPS)
 
-Инструкция для чистого Ubuntu/Debian-сервера. Поднимаем ассистента в Docker за nginx с HTTPS.
-Всё, что нужно: сервер с публичным IP, домен, ключ OpenAI.
+Инструкция для чистого Ubuntu/Debian-сервера. Запускаем как нативный сервис `qletovo`
+(без Docker) за nginx с HTTPS. Домен в примере — **qletovo.kochergin.me** (замени на свой,
+если другой).
 
----
-
-## 0. Что понадобится
-
-- VPS/сервер: Ubuntu 22.04+ (≥2 ГБ RAM, ~2 ГБ диска под образ+корпус).
-- Домен, нацеленный A-записью на IP сервера (например `letovo-bot.ru`).
-- Ключ OpenAI (`sk-...`). Если с сервера не открывается `api.openai.com` (РФ) — нужен
-  OpenAI-совместимый прокси (его URL впишем в `OPENAI_BASE_URL`).
+Нужно: сервер с публичным IP, домен (A-запись на IP), ключ OpenAI (`sk-...`).
 
 ---
 
-## 1. Установить Docker
+## 1. Системные пакеты
 
 ```bash
-curl -fsSL https://get.docker.com | sh
-sudo usermod -aG docker $USER   # чтобы docker без sudo; перелогиниться после
+sudo apt update
+sudo apt install -y python3-venv python3-pip git nginx certbot python3-certbot-nginx \
+                    tesseract-ocr tesseract-ocr-rus tesseract-ocr-eng
 ```
 
-Проверка: `docker --version` и `docker compose version`.
+`tesseract-*` — для OCR сканированных PDF при индексации.
 
 ---
 
-## 2. Склонировать репозиторий
+## 2. Пользователь и код
+
+Отдельный системный пользователь `qletovo` и код в `/opt/qletovo`:
 
 ```bash
-sudo mkdir -p /opt && cd /opt
-git clone https://github.com/iskochergin/qletovo.git
-cd qletovo
+sudo useradd --system --create-home --home-dir /opt/qletovo --shell /usr/sbin/nologin qletovo
+sudo -u qletovo git clone https://github.com/iskochergin/qletovo.git /opt/qletovo
+cd /opt/qletovo
 ```
 
-> Если репозиторий приватный — настрой доступ (deploy key или `gh auth`/токен), либо клонируй по SSH:
-> `git clone git@github.com:iskochergin/qletovo.git`.
-
-Корпус PDF и собранный индекс уже в репозитории (`data/docs`, но индекс `data/index`
-в .gitignore — соберём в шаге 4).
+> Приватный репозиторий — настрой deploy-key для пользователя `qletovo` или клонируй по SSH.
 
 ---
 
-## 3. Настроить .env
+## 3. venv и зависимости
 
 ```bash
-cp .env.example .env
-nano .env
-```
-
-Обязательно заполнить:
-- `OPENAI_API_KEY=sk-...` — твой ключ.
-- `ADMIN_PASSWORD=...` — придумай свой надёжный пароль для `/admin`.
-- `OPENAI_BASE_URL=` — оставь пустым, если `api.openai.com` доступен; иначе впиши URL прокси.
-- `PUBLIC_BASE_URL=` — оставь **пустым** (ссылки на PDF возьмутся из домена запроса автоматически).
-
-Остальное можно не трогать (разумные значения по умолчанию).
-
----
-
-## 4. Собрать индекс и запустить
-
-```bash
-docker compose build
-docker compose run --rm api python -m scripts.reindex   # разовая сборка индекса (~5–10 мин, OCR сканов)
-docker compose up -d                                    # поднять API на :8765
-```
-
-Проверка локально на сервере:
-```bash
-curl -s http://127.0.0.1:8765/health        # {"ok":true,"documents":...}
-docker compose logs -f api                   # логи: видно вызовы OpenAI и вопросы
+sudo -u qletovo python3 -m venv /opt/qletovo/.venv
+sudo -u qletovo /opt/qletovo/.venv/bin/pip install --upgrade pip
+sudo -u qletovo /opt/qletovo/.venv/bin/pip install -r /opt/qletovo/requirements.txt
 ```
 
 ---
 
-## 5. nginx + HTTPS
+## 4. .env
 
-Установить nginx и certbot:
 ```bash
-sudo apt update && sudo apt install -y nginx certbot python3-certbot-nginx
+sudo -u qletovo cp /opt/qletovo/.env.example /opt/qletovo/.env
+sudo -u qletovo nano /opt/qletovo/.env
 ```
 
-Создать конфиг `/etc/nginx/sites-available/qletovo`:
+Заполнить:
+- `OPENAI_API_KEY=sk-...` — ключ.
+- `ADMIN_PASSWORD=...` — свой пароль для `/admin`.
+- `OPENAI_BASE_URL=` — пусто, если `api.openai.com` доступен; иначе URL прокси (актуально для РФ).
+- `PUBLIC_BASE_URL=` — оставить **пустым** (домен берётся из запроса автоматически).
+
+Защитить файл с секретами:
+```bash
+sudo chmod 600 /opt/qletovo/.env && sudo chown qletovo:qletovo /opt/qletovo/.env
+```
+
+---
+
+## 5. Собрать индекс
+
+```bash
+sudo -u qletovo /opt/qletovo/.venv/bin/python -m scripts.reindex
+```
+~5–10 мин (OCR сканов). В конце выведет `{"documents": ..., "chunks": ...}`.
+
+---
+
+## 6. systemd-сервис `qletovo`
+
+Unit уже в репозитории — `deploy/qletovo.service` (слушает `127.0.0.1:8765`, наружу — nginx):
+
+```bash
+sudo cp /opt/qletovo/deploy/qletovo.service /etc/systemd/system/qletovo.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now qletovo
+```
+
+Проверка:
+```bash
+systemctl status qletovo          # active (running)
+journalctl -u qletovo -f          # логи: стартовый баннер + вопросы + вызовы OpenAI
+curl -s http://127.0.0.1:8765/health
+```
+
+---
+
+## 7. nginx + HTTPS для qletovo.kochergin.me
+
+Конфиг `/etc/nginx/sites-available/qletovo`:
 ```nginx
 server {
     listen 80;
-    server_name letovo-bot.ru;   # ← твой домен
+    server_name qletovo.kochergin.me;
 
-    client_max_body_size 50m;    # чтобы грузить крупные PDF через /admin
+    client_max_body_size 50m;     # загрузка крупных PDF через /admin
 
     location / {
         proxy_pass http://127.0.0.1:8765;
-        proxy_set_header Host $host;                       # ← важно: домен в ссылках на PDF
-        proxy_set_header X-Forwarded-Proto $scheme;        # ← важно: https в ссылках
+        proxy_set_header Host $host;                  # домен в ссылках на PDF
+        proxy_set_header X-Forwarded-Proto $scheme;   # https в ссылках
         proxy_set_header X-Forwarded-For $remote_addr;
-        proxy_read_timeout 60s;                            # ответы LLM до ~20с
+        proxy_read_timeout 60s;                       # ответ LLM до ~20с
     }
 }
 ```
@@ -103,53 +116,53 @@ server {
 ```bash
 sudo ln -s /etc/nginx/sites-available/qletovo /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
-sudo certbot --nginx -d letovo-bot.ru        # автоматически настроит HTTPS и редирект
+sudo certbot --nginx -d qletovo.kochergin.me     # HTTPS + редирект http→https
 ```
 
-Готово. Сайт открывается по **https://letovo-bot.ru**, админка — **https://letovo-bot.ru/admin**.
-Ссылки на страницы PDF в ответах будут автоматически на твоём домене с https.
+Готово:
+- чат — **https://qletovo.kochergin.me**
+- админка — **https://qletovo.kochergin.me/admin** (пароль = `ADMIN_PASSWORD`)
 
 ---
 
-## 6. Обновление (когда вышли изменения в репозитории)
+## 8. Обновление кода
 
 ```bash
 cd /opt/qletovo
-git pull
-docker compose up -d --build        # пересобрать образ со свежим кодом
-# если менялись документы/индексатор:
-docker compose run --rm api python -m scripts.reindex
-docker compose up -d
+sudo -u qletovo git pull
+sudo -u qletovo /opt/qletovo/.venv/bin/pip install -r requirements.txt   # если менялись зависимости
+sudo -u qletovo /opt/qletovo/.venv/bin/python -m scripts.reindex          # если менялись документы/индексатор
+sudo systemctl restart qletovo
 ```
-
-> ВАЖНО: после `git pull` обязательно `--build`, иначе контейнер останется на старом коде.
 
 ---
 
-## 7. Эксплуатация
+## 9. Эксплуатация
 
 ```bash
-docker compose ps                 # статус (healthy?)
-docker compose logs -f api        # живые логи (вопросы + вызовы OpenAI + время)
-docker compose restart api        # перезапуск
-docker compose down               # остановить
+sudo systemctl restart qletovo     # перезапуск
+sudo systemctl stop qletovo        # остановить
+journalctl -u qletovo -f           # живые логи (вопросы, вызовы OpenAI, время)
+journalctl -u qletovo --since "1 hour ago"
 ```
 
-**Бэкап:** достаточно сохранить `data/docs/` (PDF) и `.env`. Индекс `data/index/`
-пересобирается командой `scripts.reindex`. Документы, загруженные через `/admin`,
-лежат в том же `data/docs/` (том примонтирован) — переживают пересборку образа.
-
-**Добавление документов:** через `/admin` (загрузка PDF, авто-индексация с OCR) — сервер
-перезапускать не нужно.
+**Документы:** добавляются через `/admin` (загрузка PDF, авто-индексация с OCR) — перезапуск не нужен.
+**Бэкап:** сохранить `data/docs/` (PDF) и `.env`. Индекс `data/index/` пересобирается `scripts.reindex`.
 
 ---
 
 ## Частые проблемы
 
-| Симптом | Причина / решение |
+| Симптом | Решение |
 |---|---|
-| Ответы «Сервис временно недоступен» | Сервер не достучался до OpenAI. Проверь `OPENAI_API_KEY` и доступность `api.openai.com` (в РФ — пропиши `OPENAI_BASE_URL` на прокси). `docker compose logs api`. |
-| Ссылки на PDF ведут на `127.0.0.1` | nginx не передаёт `Host`/`X-Forwarded-Proto` — добавь `proxy_set_header` (шаг 5). |
-| `/admin` не пускает | Неверный `ADMIN_PASSWORD` в `.env`; после правки `.env` → `docker compose up -d`. |
-| Изменения кода не применяются | Забыл `--build`: `docker compose up -d --build`. |
-| 413 при загрузке PDF | Увеличь `client_max_body_size` в nginx. |
+| `502 Bad Gateway` | Сервис не запущен: `systemctl status qletovo`, `journalctl -u qletovo -n 50`. |
+| «Сервис временно недоступен» в ответах | Сервер не достучался до OpenAI. Проверь `OPENAI_API_KEY` и доступность `api.openai.com` (РФ → `OPENAI_BASE_URL` на прокси). |
+| Ссылки на PDF ведут на `127.0.0.1` | nginx не пробрасывает `Host`/`X-Forwarded-Proto` — добавь `proxy_set_header` (шаг 7). |
+| `/admin` не пускает | Неверный `ADMIN_PASSWORD`; после правки `.env` → `sudo systemctl restart qletovo`. |
+| `413 Request Entity Too Large` | Увеличь `client_max_body_size` в nginx. |
+| Изменения кода не применились | Забыл `sudo systemctl restart qletovo` после `git pull`. |
+
+---
+
+> Docker-вариант (compose) тоже поддерживается — см. `docker-compose.yml` и `Dockerfile`,
+> но для одного сервера systemd-способ выше проще и легче.

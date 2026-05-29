@@ -202,18 +202,18 @@ location / {
 Задавайте `PUBLIC_BASE_URL=https://ваш-домен` в `.env` **только** если хотите зафиксировать
 канонический домен (для веб-чата — оставляйте пустым, домен берётся из запроса).
 
-### systemd (без Docker)
+### systemd (без Docker) — рекомендуется для одного сервера
 
-Юнит — в `deploy/`. Предполагается код в `/opt/qletovo`, venv в `/opt/qletovo/.venv`,
-пользователь `qletovo`.
+Готовый юнит `deploy/qletovo.service` (код в `/opt/qletovo`, venv `/opt/qletovo/.venv`,
+пользователь `qletovo`, слушает `127.0.0.1:8765` за nginx). Полная пошаговая инструкция
+с nginx и HTTPS — в **[DEPLOY.md](DEPLOY.md)**. Кратко:
 
 ```bash
-sudo cp deploy/qletovo-api.service /etc/systemd/system/
+sudo cp deploy/qletovo.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable --now qletovo-api
+sudo systemctl enable --now qletovo
+journalctl -u qletovo -f      # логи
 ```
-
-API слушает `0.0.0.0:8765` (за nginx/TLS).
 
 ## Известные ограничения
 
