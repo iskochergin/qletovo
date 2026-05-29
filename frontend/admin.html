@@ -57,6 +57,13 @@
   button:disabled{opacity:.45; cursor:default;}
   .status{margin-top:12px; font-size:14px; min-height:20px; color:var(--ink); font-weight:600;}
   .status.err{color:var(--danger);}
+  /* выбранные файлы + ручные названия */
+  #fileList{margin-top:10px; display:flex; flex-direction:column; gap:8px;}
+  #fileList:empty{display:none;}
+  .frow{display:flex; align-items:center; gap:10px; background:#fbfcfe; border:1px solid var(--line); border-radius:10px; padding:8px 10px;}
+  .frow .fn{font-size:11px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; width:34%; flex:none;}
+  .frow input{flex:1; min-width:0; border:1px solid var(--line); border-radius:8px; padding:8px 10px; font:inherit; font-size:14px; outline:none; background:#fff;}
+  .frow input:focus{border-color:var(--navy); box-shadow:0 0 0 3px rgba(20,50,130,.08);}
   /* doc list */
   .doc{display:flex; align-items:center; gap:12px; border:1px solid var(--line); border-radius:12px; padding:11px 13px; margin-top:10px; background:#fff; transition:border-color .12s, box-shadow .12s;}
   .doc:hover{border-color:var(--navy-l); box-shadow:var(--shadow-sm);}
@@ -66,6 +73,8 @@
   .doc .ttl{font-weight:700;font-size:14.5px;color:var(--navy);text-decoration:none;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .doc .ttl:hover{text-decoration:underline;}
   .doc .sub{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .doc .edit{flex:none; border:1px solid var(--line); color:var(--navy); background:#fff; border-radius:9px; padding:6px 11px; font-size:13px; font-weight:700; margin-right:6px;}
+  .doc .edit:hover{background:#f1f4fb;}
   .doc .del{flex:none; border:1px solid #e7c3bd; color:var(--danger); background:#fff; border-radius:9px; padding:6px 12px; font-size:13px; font-weight:700;}
   .doc .del:hover{background:#fdecea;}
   .muted{color:var(--muted); font-size:13px;}
@@ -94,7 +103,7 @@
       <div class="card">
         <h2>Вход</h2>
         <label class="lbl" for="pw">Пароль администратора</label>
-        <input id="pw" type="password" placeholder="ADMIN_PASSWORD из .env" autocomplete="current-password" />
+        <input id="pw" type="password" placeholder="Пароль" autocomplete="current-password" />
         <div class="row"><button id="loginBtn" class="primary" style="flex:1">Войти</button></div>
         <div class="status" id="loginStatus"></div>
       </div>
@@ -108,6 +117,7 @@
           <span><span class="t" id="fileLabel">Выберите PDF-файлы</span><br><span class="h">можно несколько; добавятся в индекс автоматически</span></span>
           <input id="files" type="file" accept="application/pdf,.pdf" multiple />
         </label>
+        <div id="fileList"></div>
         <div class="row">
           <button id="uploadBtn" class="primary">Загрузить и проиндексировать</button>
           <button id="reindexBtn" class="secondary">Полная переиндексация</button>
@@ -156,7 +166,9 @@ async function loadDocs(){
         '<span class="ic">'+DOC_ICON+'</span>'
         + '<span class="meta"><a class="ttl" href="'+esc(d.url)+'" target="_blank" rel="noopener">'+esc(d.title || d.local_name)+'</a>'
         + '<span class="sub">'+esc(d.local_name)+' · '+esc(d.page_count ?? '?')+' стр. · '+esc(d.n_chunks ?? '?')+' фрагм.</span></span>'
-        + '<button class="del" data-id="'+esc(d.doc_id)+'">Удалить</button>';
+        + '<button class="edit">✎ Название</button>'
+        + '<button class="del">Удалить</button>';
+      el.querySelector('.edit').addEventListener('click', () => renameDoc(d.doc_id, d.title || d.local_name));
       el.querySelector('.del').addEventListener('click', () => del(d.doc_id));
       wrap.appendChild(el);
     }
@@ -168,6 +180,8 @@ async function upload(){
   if (!files.length){ $('opStatus').textContent = 'Сначала выберите PDF-файлы.'; $('opStatus').classList.add('err'); return; }
   const fd = new FormData();
   for (const f of files) fd.append('files', f);
+  // названия — параллельно файлам, в том же порядке
+  $('fileList').querySelectorAll('.frow input').forEach(inp => fd.append('titles', inp.value || ''));
   $('opStatus').classList.remove('err'); $('opStatus').textContent = 'Загрузка и индексация…';
   $('uploadBtn').disabled = true;
   try {
@@ -178,10 +192,21 @@ async function upload(){
     let msg = 'Готово: проиндексировано ' + ok + ' файл(ов).';
     if (fail.length) msg += ' Ошибки: ' + fail.map(f=>esc(f.filename)+' — '+esc(f.error)).join('; ');
     $('opStatus').innerHTML = msg;
-    $('files').value = ''; $('fileLabel').textContent = 'Выберите PDF-файлы';
+    $('files').value = ''; $('fileLabel').textContent = 'Выберите PDF-файлы'; $('fileList').innerHTML = '';
     loadDocs();
   } catch (e) { $('opStatus').textContent = 'Ошибка загрузки.'; $('opStatus').classList.add('err'); }
   finally { $('uploadBtn').disabled = false; }
+}
+
+async function renameDoc(docId, current){
+  const t = prompt('Название документа (показывается пользователям при открытии):', current || '');
+  if (t === null) return;
+  const title = t.trim();
+  if (!title) return;
+  try {
+    await fetch('/admin/rename', { method:'POST', headers: headers({'Content-Type':'application/json'}), body: JSON.stringify({doc_id: docId, title}) });
+    loadDocs();
+  } catch (e) { alert('Ошибка переименования.'); }
 }
 
 async function reindex(){
@@ -208,9 +233,17 @@ $('loginBtn').addEventListener('click', login);
 $('pw').addEventListener('keydown', e => { if (e.key==='Enter') login(); });
 $('uploadBtn').addEventListener('click', upload);
 $('reindexBtn').addEventListener('click', reindex);
+function humanize(fn){ return fn.replace(/\.pdf$/i,'').replace(/[_-]+/g,' ').replace(/\s+/g,' ').trim(); }
 $('files').addEventListener('change', () => {
-  const n = $('files').files.length;
-  $('fileLabel').textContent = n ? (n + ' файл(ов) выбрано') : 'Выберите PDF-файлы';
+  const files = [...$('files').files];
+  $('fileLabel').textContent = files.length ? (files.length + ' файл(ов) выбрано') : 'Выберите PDF-файлы';
+  const list = $('fileList'); list.innerHTML = '';
+  files.forEach(f => {
+    const row = document.createElement('div'); row.className = 'frow';
+    row.innerHTML = '<span class="fn">'+esc(f.name)+'</span><input type="text" placeholder="Название документа" />';
+    row.querySelector('input').value = humanize(f.name);
+    list.appendChild(row);
+  });
 });
 </script>
 </body>

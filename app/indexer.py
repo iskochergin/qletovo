@@ -31,16 +31,44 @@ def _load_source_urls(docs_dir: Path) -> dict[str, str]:
     return {name: (meta or {}).get("source_url") for name, meta in data.items() if (meta or {}).get("source_url")}
 
 
+def _titles_path(docs_dir: Path) -> Path:
+    return Path(docs_dir) / "_titles.json"
+
+
+def load_title_overrides(docs_dir: Path | None = None) -> dict[str, str]:
+    """Ручные названия документов (local_name -> title). Переживают полную переиндексацию."""
+    fp = _titles_path(Path(docs_dir or settings.docs_dir))
+    if not fp.exists():
+        return {}
+    try:
+        return json.loads(fp.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def save_title_override(local_name: str, title: str, docs_dir: Path | None = None) -> None:
+    docs_dir = Path(docs_dir or settings.docs_dir)
+    data = load_title_overrides(docs_dir)
+    title = (title or "").strip()
+    if title:
+        data[local_name] = title
+    else:
+        data.pop(local_name, None)
+    _titles_path(docs_dir).write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
 def _embed_for_index(chunk_dicts: list[dict]) -> np.ndarray:
     embedder = get_embedder()
     texts = [c["text"] for c in chunk_dicts]
     return embedder.embed_docs(texts)
 
 
-def index_pdf(path: Path, source_url: str | None = None) -> dict:
+def index_pdf(path: Path, source_url: str | None = None, title: str | None = None) -> dict:
     """Инкрементально добавить/обновить один PDF в индексе. Возвращает manifest_entry."""
     path = Path(path)
-    chunk_dicts, manifest_entry = build_chunks_for_pdf(path, source_url=source_url)
+    if title:
+        save_title_override(path.name, title)
+    chunk_dicts, manifest_entry = build_chunks_for_pdf(path, source_url=source_url, title_override=title)
     vectors = _embed_for_index(chunk_dicts)
     get_store().add_document(manifest_entry, chunk_dicts, vectors)
     return manifest_entry
@@ -50,6 +78,7 @@ def reindex_all(docs_dir: Path | None = None) -> dict:
     """Полная пересборка индекса из всех PDF в docs_dir."""
     docs_dir = Path(docs_dir or settings.docs_dir)
     source_urls = _load_source_urls(docs_dir)
+    title_overrides = load_title_overrides(docs_dir)
     pdfs = sorted(p for p in docs_dir.glob("*.pdf") if p.is_file())
     all_chunks: list[dict] = []
     all_manifest: list[dict] = []
@@ -59,7 +88,9 @@ def reindex_all(docs_dir: Path | None = None) -> dict:
             skipped.append(f"{pdf.name}: исключён по INDEX_EXCLUDE")
             continue
         try:
-            chunk_dicts, manifest_entry = build_chunks_for_pdf(pdf, source_url=source_urls.get(pdf.name))
+            chunk_dicts, manifest_entry = build_chunks_for_pdf(
+                pdf, source_url=source_urls.get(pdf.name), title_override=title_overrides.get(pdf.name)
+            )
         except Exception as exc:  # noqa: BLE001 — битый/нечитаемый PDF не должен ронять реиндексацию
             skipped.append(f"{pdf.name}: {exc}")
             continue

@@ -84,13 +84,13 @@ def split_text(text: str, size: int, overlap: int) -> list[str]:
     return chunks
 
 
-def build_chunks_for_pdf(path: Path, source_url: str | None = None) -> tuple[list[dict], dict]:
+def build_chunks_for_pdf(path: Path, source_url: str | None = None, title_override: str | None = None) -> tuple[list[dict], dict]:
     """Возвращает (chunk_dicts без векторов, manifest_entry без n_chunks)."""
     path = Path(path)
     sha1 = file_sha1(path)
     doc = fitz.open(path)
     try:
-        title = humanize_title(path, doc)
+        title = (title_override or "").strip() or humanize_title(path, doc)
         doc_id = doc_id_for(path, sha1)
         local_name = unicodedata.normalize("NFC", path.name)
         chunk_dicts: list[dict] = []

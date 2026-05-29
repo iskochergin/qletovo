@@ -156,6 +156,24 @@ class VectorStore:
                     self.save()
             return removed
 
+    def rename_document(self, doc_id: str, title: str) -> bool:
+        """Меняет отображаемое название документа (в чанках и манифесте). Без переэмбеддинга."""
+        with self._lock:
+            title = (title or "").strip()
+            if not title:
+                return False
+            found = False
+            for ch in self.chunks:
+                if ch.get("doc_id") == doc_id:
+                    ch["title"] = title
+                    found = True
+            for m in self.manifest:
+                if m.get("doc_id") == doc_id:
+                    m["title"] = title
+            if found:
+                self.save()
+            return found
+
     def replace_all(self, chunk_dicts: list[dict], vectors: np.ndarray, manifest: list[dict]) -> None:
         """Полная пересборка индекса (scripts/reindex.py)."""
         with self._lock:

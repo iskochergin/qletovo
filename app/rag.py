@@ -41,13 +41,22 @@ def resolve_local_filename(name: str | None) -> str | None:
     return None
 
 
-def pdf_page_url(local_name: str, page: int | None, base_url: str) -> str:
-    """Ссылка прямо на страницу PDF: {base}/files/<file>.pdf#page=N (нативно в браузере)."""
+def pdf_page_url(local_name: str, page: int | None, base_url: str, title: str | None = None) -> str:
+    """Ссылка на страницу-просмотрщик: {base}/viewer/<file>.pdf?page=N&title=...
+
+    Просмотрщик (frontend/viewer.html) показывает PDF на нужной странице + топбар с кнопкой
+    «назад в чат» и человекочитаемым названием документа.
+    """
     actual = resolve_local_filename(local_name) or local_name
     base = (base_url or "").rstrip("/")
     quoted = urllib.parse.quote(actual)
-    fragment = f"#page={int(page)}" if page else ""
-    return f"{base}/files/{quoted}{fragment}"
+    params = []
+    if page:
+        params.append(f"page={int(page)}")
+    if title:
+        params.append("title=" + urllib.parse.quote(title))
+    query = ("?" + "&".join(params)) if params else ""
+    return f"{base}/viewer/{quoted}{query}"
 
 
 def _expand_by_pages(indices: list[int]) -> list[int]:
@@ -120,11 +129,12 @@ def _build_sources(
         if key in seen:
             continue
         seen.add(key)
+        title = ch.get("title") or local_name
         out.append(
             {
-                "title": ch.get("title") or local_name,
+                "title": title,
                 "page": page,
-                "url": pdf_page_url(local_name, page, base_url),
+                "url": pdf_page_url(local_name, page, base_url, title=title),
             }
         )
         if len(out) >= limit:
@@ -256,7 +266,7 @@ def list_documents(base_url: str) -> list[dict]:
                 "local_name": local_name,
                 "page_count": m.get("page_count"),
                 "n_chunks": m.get("n_chunks"),
-                "url": pdf_page_url(local_name, 1, base_url) if local_name else None,
+                "url": pdf_page_url(local_name, 1, base_url, title=m.get("title")) if local_name else None,
             }
         )
     return out

@@ -130,25 +130,44 @@ def admin_docs(request: Request, _: None = Depends(require_admin)):
 async def admin_upload(
     request: Request,
     files: list[UploadFile] = File(...),
+    titles: list[str] = Form(default=[]),  # параллельно files: ручное название для каждого файла
     _: None = Depends(require_admin),
 ):
     from .indexer import index_pdf
 
     results = []
-    for up in files:
+    for i, up in enumerate(files):
         name = unicodedata.normalize("NFC", Path(up.filename or "").name)
         if not name.lower().endswith(".pdf"):
             results.append({"filename": up.filename, "ok": False, "error": "Только PDF."})
             continue
+        title = (titles[i].strip() if i < len(titles) else "") or None
         target = settings.docs_dir / name
         content = await up.read()
         target.write_bytes(content)
         try:
-            entry = index_pdf(target)
+            entry = index_pdf(target, title=title)
             results.append({"filename": name, "ok": True, "doc_id": entry["doc_id"], "chunks": entry["n_chunks"]})
         except Exception as exc:  # noqa: BLE001
             results.append({"filename": name, "ok": False, "error": str(exc)[:300]})
     return {"results": results}
+
+
+class RenameIn(BaseModel):
+    doc_id: str
+    title: str
+
+
+@app.post("/admin/rename")
+def admin_rename(payload: RenameIn, _: None = Depends(require_admin)):
+    store = get_store()
+    local_name = next((m.get("local_name") for m in store.manifest if m.get("doc_id") == payload.doc_id), None)
+    ok = store.rename_document(payload.doc_id, payload.title)
+    if ok and local_name:
+        from .indexer import save_title_override
+
+        save_title_override(local_name, payload.title)  # переживёт полную переиндексацию
+    return {"ok": ok, "doc_id": payload.doc_id, "title": payload.title.strip()}
 
 
 @app.post("/admin/reindex")
@@ -200,6 +219,15 @@ def admin_page():
     if page.exists():
         return FileResponse(page, headers=_NO_CACHE)
     return HTMLResponse("<h1>Админка</h1><p>frontend/admin.html не найден.</p>")
+
+
+@app.get("/viewer/{local_name:path}", response_class=HTMLResponse)
+def viewer(local_name: str):
+    # Просмотрщик PDF с топбаром (назад в чат + название). Имя/страница/название читаются на фронте.
+    page = FRONTEND / "viewer.html"
+    if page.exists():
+        return FileResponse(page, headers=_NO_CACHE)
+    return HTMLResponse("<h1>Просмотр документа</h1><p>frontend/viewer.html не найден.</p>")
 
 
 @app.get("/favicon.ico", include_in_schema=False)
